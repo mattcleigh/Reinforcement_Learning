@@ -104,8 +104,12 @@ class Experience_Replay(object):
         rewards     = self.reward_memory[indices]
         next_states = self.next_state_memory[indices]
         dones       = self.terminal_memory[indices]
+        
+        ## The PER returns is_weights and indicies so to
+        ## unify these methods we return them too, even though
+        ## we do not use them.
 
-        return states, actions, rewards, next_states, dones
+        return states, actions, rewards, next_states, dones, [1], indicies
 
 
 class PER(object):
@@ -274,9 +278,9 @@ class N_Step_PER(object):
         n_action   = self.n_step_buffer[0][1]
 
         ## We collect the last elements of our buffer for the n_step
-        n_reward     = self.n_step_buffer[-1][2]
         n_next_state = self.n_step_buffer[-1][3]
         n_done       = self.n_step_buffer[-1][4]
+        n_reward     = 0
 
         ## iterate backwards towards the begining
         for transition in reversed(list(self.n_step_buffer)):
@@ -290,9 +294,9 @@ class N_Step_PER(object):
             ## If the transition lead to a terminal state
             ## We shift the n_step to be shorter
             if don:
-                n_reward = rew
                 n_state  = n_s
                 n_done   = don
+                n_reward = rew
 
         return n_state, n_action, n_reward, n_next_state, n_done
 

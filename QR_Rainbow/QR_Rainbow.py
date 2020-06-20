@@ -15,8 +15,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 from collections import OrderedDict
 
-class DuelMLP(nn.Module):
+class QRDuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
+        This is a distributional arcitecture for QR.
         This is a dueling network and contains seperate streams 
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
@@ -24,8 +25,9 @@ class DuelMLP(nn.Module):
     def __init__(self, name, chpt_dir,
                        input_dims, n_outputs,
                        depth, width, activ,
-                       noisy ):
-        super(DuelMLP, self).__init__()
+                       noisy, 
+                       n_atoms ):
+        super(QRDuelMLP, self).__init__()
 
         ## Defining the network features
         self.name       = name
@@ -34,6 +36,9 @@ class DuelMLP(nn.Module):
         self.input_dims = input_dims
         self.n_outputs  = n_outputs
 
+        ## The QR distributional RL parameters
+        self.n_atoms = n_atoms
+        
         # Checking if noisy layers will be used
         if noisy:
             linear_layer = ll.FactNoisyLinear
@@ -52,12 +57,12 @@ class DuelMLP(nn.Module):
         self.V_stream = nn.Sequential(OrderedDict([
             ( "V_lin_1",   linear_layer(width, width//2) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, 1) ),
+            ( "V_lin_out", linear_layer(width//2, n_atoms) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs) ),
+            ( "A_lin_out", linear_layer(width//2, n_outputs*n_atoms) ),
         ]))
 
         ## Moving the network to the device
@@ -66,15 +71,16 @@ class DuelMLP(nn.Module):
 
 
     def forward(self, state):
-        ## This is a standard network for the Q evaluation
-        ## So the output is a A length vector
-            ## Each element is the expected return for each action
-            
+        ## This is a network for the QR algorithm
+        ## So the output is a matrix AxN
+            ## Each row is an action
+            ## Each column is the location of a Q dist quartile
+
         shared_out = self.base_stream(state)
-        V = self.V_stream(shared_out)
-        A = self.A_stream(shared_out)
+        V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
+        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_atoms)
         Q = V + A - A.mean( dim=1, keepdim=True)
-        
+
         return Q
 
     def save_checkpoint(self, flag=""):
@@ -108,22 +114,27 @@ class Agent(object):
                  PEReps,      PERa,
                  PERbeta,     PERb_inc,
                  PERmax_td,
+                 \
+                 n_atoms,
                  ):
-                       
+        
         ## Setting all class variables
         self.__dict__.update(locals())
+        self.epsilon = 0
         self.learn_step_counter = 0
 
         ## The policy and target networks
-        self.policy_net = DuelMLP( self.name + "_policy_network", net_dir,
-                                   input_dims, n_actions, depth, width, activ, noisy )
-        self.target_net = DuelMLP( self.name + "_target_network", net_dir, 
-                                   input_dims, n_actions, depth, width, activ, noisy )
+        self.policy_net = QRDuelMLP( self.name + "_policy_network", net_dir,
+                                     input_dims, n_actions, depth, width, activ,
+                                     noisy, n_atoms )
+        self.target_net = QRDuelMLP( self.name + "_target_network", net_dir,
+                                     input_dims, n_actions, depth, width, activ,
+                                     noisy, n_atoms )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
-        ## The gradient descent algorithm and loss function used to train the policy network
+        ## The gradient descent algorithm used to train the policy network
         self.optimiser = optim.Adam( self.policy_net.parameters(), lr = lr )
-        self.loss_fn = nn.SmoothL1Loss( reduction = "none" )
+        self.huber = lambda x: T.where( x.abs() < 1, 0.5 * x.pow(2), (x.abs() - 0.5) )
 
         ## Priotised experience replay for multi-timestep learning
         if PER_on and n_step > 1:
@@ -152,25 +163,26 @@ class Agent(object):
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_value = 0
+            act_dist = np.zeros( self.n_atoms )
         
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_value = 0
+                act_dist = np.zeros( self.n_atoms )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
             
         ## Then act purely greedily
         else:
             with T.no_grad():
                 state_tensor = T.tensor( [state], device=self.target_net.device, dtype=T.float32 )
-                Q_values = self.policy_net(state_tensor)
-                action = T.argmax(Q_values).item()
-                act_value = Q_values[0][action].cpu().numpy()
+                dist = self.policy_net(state_tensor)
+                Q_values = T.sum( dist, dim=-1 )
+                action = T.argmax(Q_values, dim=1).item()
+                act_dist = dist[0][action].cpu().numpy()
 
-        return action, act_value
-
-
+        return action, act_dist
+        
+        
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
@@ -218,43 +230,58 @@ class Agent(object):
         ## We need to convert all of these arrays to pytorch tensors
         states      = T.tensor(states).to(self.policy_net.device)
         actions     = T.tensor(actions).to(self.policy_net.device)
-        rewards     = T.tensor(rewards).to(self.policy_net.device)
+        rewards     = T.tensor(rewards).to(self.policy_net.device).reshape(-1, 1)
         next_states = T.tensor(next_states).to(self.policy_net.device)
-        dones       = T.tensor(dones).to(self.policy_net.device)
+        dones       = T.tensor(dones).to(self.policy_net.device).reshape(-1, 1)
         is_weights  = T.tensor(is_weights).to(self.policy_net.device)
-
+        
         ## We use the range of up to batch_size just for indexing methods
         batch_idxes = list(range(self.batch_size))
-        
+
         ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
-
-            ## First we find the Q-values of the next states
-            pol_Q_next = self.policy_net(next_states)
-
+            
+            ## First we need the next state distribution using the policy network for double Q learning
+            pol_dist_next = self.policy_net(next_states)
+            
+            ## We then find the Q-values of the actions by summing over the supports
+            pol_Q_next = T.sum( pol_dist_next, dim=-1 )
+            
             ## Can then determine the optimum actions
             next_actions = T.argmax(pol_Q_next, dim=1)
-
-            ## We now use the target network to get the values of these actions
-            tar_Q_next = self.target_net(next_states)[batch_idxes, next_actions]
-
-            ## Calculate the target values based on the Bellman Equation
-            td_targets = rewards + ( self.gamma ** self.n_step ) * tar_Q_next * (~dones)
-            td_targets = td_targets.detach()
             
-        ## Now we calculate the network estimates for the state values
-        pol_Q = self.policy_net(states)[batch_idxes, actions]
+            ## We now use the target network to get the distributions of these actions
+            tar_dist_next = self.target_net(next_states)[batch_idxes, next_actions]
+            
+            ## We can then find the new supports using the distributional Bellman Equation            
+            target_dist = rewards + ( self.gamma ** self.n_step ) * tar_dist_next * (~dones)
+            target_dist = target_dist.detach()
+            
+        ## Now we want to track gradients using the policy network
+        pol_dist = self.policy_net(states)[batch_idxes, actions]
+
+        tau = T.arange( start=1, end=self.n_atoms+1, dtype=T.float32, device=self.policy_net.device )
+        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_atoms )
         
-        ## Calculate the TD-Errors to be used in PER and update the replay
+        ## To create the difference tensor for each sample in batch various unsqueezes are needed        
+        dist_diff = target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
+        
+        ## We then find the loss function using the QR equation
+        QRloss = self.huber(dist_diff) * (tau - (dist_diff.detach()<0).float()).abs()
+        
+        ## We then need to find the mean along the batch dimension, so we get the loss for each sample
+        QRloss = QRloss.mean(dim=-1).mean(dim=-1)
+        
+        ## Use this loss as new errors to be used in PER and update the replay
         if self.PER_on:
-            new_errors = T.abs(pol_Q - td_targets).detach().cpu().numpy().squeeze()
+            new_errors = QRloss.detach().cpu().numpy().squeeze()
             self.memory.batch_update(indices, new_errors)
             error = new_errors.mean()
 
-        ## Calculate the loss individually for each element and perform graidient desc
-        loss = self.loss_fn( pol_Q, td_targets )
+        ## Now we use gradient descent using the prioritised importance sampling weights
+        loss = QRloss
         if self.PER_on:
-            loss = loss * is_weights.unsqueeze(1)
+            loss = loss * is_weights
         loss = loss.mean()
         loss.backward()
         self.optimiser.step()

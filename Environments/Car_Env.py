@@ -29,7 +29,7 @@ class MainEnv:
 
         self.turn_max   = 0.3
         self.engine_max = 1.0
-        self.brake_max  = 0.2
+        self.brake_max  = 0.3
 
         self.fric_coef   = 0.01
         self.drag_coef   = 0.005

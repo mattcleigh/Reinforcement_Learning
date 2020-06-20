@@ -11,9 +11,9 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from ND3QN import Agent
+from QR_Rainbow import Agent
 from RLResources.Utils import score_plot
-from RLResources.Utils import value_plot
+# from RLResources.Utils import cdf_plot
 
 def main():
 
@@ -52,17 +52,19 @@ def main():
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax_td = 3,
+                    \
+                    n_atoms = 51
                     )
-                    
+    
     if load_checkpoint:
         agent.load_models()
 
     ## For plotting as it learns
     plt.ion()
-    sp = score_plot("D3QN")
-
+    sp = score_plot("QRRB")
+    
     if draw_return:
-        vp = value_plot()
+        dp = cdf_plot()
 
     all_time = 0
     for ep in count():
@@ -76,7 +78,7 @@ def main():
             if render_on:
                 env.render()
 
-            action, value = agent.choose_action(state)
+            action, dist = agent.choose_action(state)
             next_state, reward, done, info = env.step(action)
             eps = agent.eps
             
@@ -95,7 +97,7 @@ def main():
             sys.stdout.flush()
 
             if draw_return and all_time%interval==0:
-                vp.update(value)
+                dp.update(dist)
 
             if not test_mode:
                 if all_time>=10000 and all_time%10000==0:
@@ -112,7 +114,6 @@ def main():
                                          ep, ep_score, ep_loss, ep_error, eps, t+1, all_time ) )
 
         sp.update(ep_score)
-
 
 
 if __name__ == '__main__':

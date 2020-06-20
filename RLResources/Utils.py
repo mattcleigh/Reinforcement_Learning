@@ -1,21 +1,20 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import torch as T
 from collections import deque
 
 def running_mean(x, N):
     cumsum = np.cumsum(np.insert(x, 0, 0))
     return (cumsum[N:] - cumsum[:-N]) / N
 
-def sigmoid(x):
-  return 1 / (1 + math.exp(-x))
-
 class score_plot(object):
-    def __init__(self, mvavg=10):
+    def __init__(self, title = "", mvavg=20):
         self.mvavg = mvavg
 
         self.fig = plt.figure( figsize = (5,5) )
         self.ax  = self.fig.add_subplot(111)
+        self.fig.suptitle(title)
 
         self.all_scores = deque(maxlen=10000)
         self.avg_scores = deque(maxlen=10000)
@@ -37,7 +36,7 @@ class score_plot(object):
         self.fig.canvas.flush_events()
 
 
-class distribution_plot(object):
+class dist_plot(object):
     def __init__(self, vmin, vmax, atoms):
         self.sups = np.linspace(vmin, vmax, atoms)
 

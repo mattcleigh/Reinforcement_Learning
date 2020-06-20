@@ -27,7 +27,7 @@ class FactNoisyLinear(nn.Linear):
         T.randn( self.eps_input.size(),  out=self.eps_input  )
         T.randn( self.eps_output.size(), out=self.eps_output )
 
-        ## In Fact Noisy Layers the random numbers are modified by a small function
+        ## In Factorised Noisy Layers the random numbers are modified by a small function
         func = lambda x: T.sign(x) * T.sqrt(T.abs(x))
         f_eps_in  = func( self.eps_input  )
         f_eps_out = func( self.eps_output )
