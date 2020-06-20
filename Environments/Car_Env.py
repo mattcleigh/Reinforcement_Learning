@@ -4,6 +4,7 @@ sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
 import math
 import time
 import numpy as np
+import numpy.random as rd
 
 from RLResources import Geometry
 import torch
@@ -26,6 +27,8 @@ class MainEnv:
         self.wheel_base = 3.0
         self.length     = 5.0
         self.width      = 3.0
+        
+        self.rand_start = True
 
         self.turn_max   = 0.3
         self.engine_max = 1.0
@@ -49,7 +52,6 @@ class MainEnv:
         self.brk_state   = 0
         self.trn_state   = 0
 
-
         ## Some measured stats for 21,5 rays
         self.means = np.array([ 3.4,  0.0,
                                 8.2,  8.3,
@@ -66,7 +68,17 @@ class MainEnv:
                                      20.1, 18.4, 15.3,  12.9, 10.3, 7.8,
                                      5.7,  4.5,  3.8,   3.4,  2.8,
                                      2.3,   5.5,   12.0,  5.5,   2.3 ])
-
+                                     
+        ## The list of possible starts for a random start method
+        self.possible_starts = [ ( [ 28.0,  54.0  ], [  0.0,  1.0  ], 0  ),
+                                 ( [ 70.0,  172.0 ], [  1.0,  0.0  ], 8  ),
+                                 ( [ 172.0, 166.0 ], [  0.0, -1.0  ], 13 ),
+                                 ( [ 130.0, 140.0 ], [ -1.0,  0.0  ], 16 ),
+                                 ( [ 60.0,  126.0 ], [  0.0, -1.0  ], 20 ),
+                                 ( [ 130.0, 116.0 ], [  1.0,  0.0  ], 24 ),
+                                 ( [ 176.0, 80.0  ], [  0.0, -1.0  ], 28 ),
+                                 ( [ 112.0, 30.0  ], [ -1.0,  0.0  ], 33 ) ]
+         
         self.set_up_track()
         self.reset()
 
@@ -86,10 +98,16 @@ class MainEnv:
     def reset(self):
         """ Resetting to the central vertical position with a tiny velocity so it doesnt stall
         """
-        self.position       = np.array( [ 28.0, 50.0 ] )
-        self.velocity       = np.array( [ 0.1,  0.0  ] )
-        self.heading        = np.array( [ 0,    1    ] )
-        self.n_gates_passed = 0
+        if self.rand_start:
+            sel_start = rd.randint( len(self.possible_starts) )
+        else: 
+            sel_start = 0
+            
+        self.position       = np.array( self.possible_starts[sel_start][0] )
+        self.heading        = np.array( self.possible_starts[sel_start][1] )
+        self.n_gates_passed = self.possible_starts[sel_start][2]
+        
+        self.velocity       = 0.1 * self.heading
         self.time = 0
 
         self.update_car_vectors()
@@ -406,7 +424,7 @@ class CarGameWindow(pyglet.window.Window):
     #     if symbol == key.B: self.env.brk_state +=  1
     #     if symbol == key.A: self.env.trn_state +=  1
     #     if symbol == key.D: self.env.trn_state += -1
-    #
+    # 
     # def on_key_release(self, symbol, modifiers):
     #     if symbol == key.W: self.env.fwd_state += -1
     #     if symbol == key.B: self.env.brk_state += -1

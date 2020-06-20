@@ -24,6 +24,7 @@ def main():
     for ep in count():
 
         state = env.reset()
+        # print(state)
 
         for it in count():
             env.render()

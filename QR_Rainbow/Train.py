@@ -51,7 +51,7 @@ def main():
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
-                    PERmax_td = 3,
+                    PERmax_td = 2,
                     \
                     n_atoms = 51
                     )
@@ -102,7 +102,7 @@ def main():
             if not test_mode:
                 if all_time>=10000 and all_time%10000==0:
                     agent.save_models()
-                if ep_score==best_score:
+                if ep_score>=best_score:
                     agent.save_models("_best")
 
             if done: break
