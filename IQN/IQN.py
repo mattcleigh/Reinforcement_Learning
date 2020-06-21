@@ -309,6 +309,7 @@ class Agent(object):
             new_errors = QRloss.detach().cpu().numpy().squeeze()
             self.memory.batch_update(indices, new_errors)
             error = new_errors.mean()
+            error = self.memory.max_priority
 
         ## Now we use gradient descent using the prioritised importance sampling weights
         loss = QRloss

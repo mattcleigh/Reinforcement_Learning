@@ -26,13 +26,13 @@ def main():
     best_score = 1500
     
     # env = Car_Env.MainEnv()
-    env = gym.make("CartPole-v1")
+    env = gym.make("CartPole-v0")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
     
     agent = Agent( 
-                    name    = "car_AI",
+                    name    = "cartpole_AI",
                     net_dir = "Saved_Binaries",
                     \
                     gamma = 0.99, lr = 1e-3,
@@ -51,9 +51,9 @@ def main():
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
-                    PERmax = 50,
+                    PERmax = 1,
                     \
-                    n_quartiles = 32
+                    n_quartiles = 51
                     )
     
     if load_checkpoint:
@@ -61,7 +61,7 @@ def main():
 
     ## For plotting as it learns
     plt.ion()
-    sp = score_plot("QRRB")
+    sp = score_plot("IQN")
     
     if draw_return:
         qp = quart_plot(-1, 25)
