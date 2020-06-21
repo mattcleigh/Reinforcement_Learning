@@ -116,7 +116,7 @@ class PER(object):
     """ A class which contains the prioritised experience replay buffer for DQN models
         using the sumtree method of sampling with values
     """
-    def __init__(self, capacity, state_input_shape, eps=0.01, a=0.5, beta=0.4, beta_inc=1e-4, max_tderr=1):
+    def __init__(self, capacity, state_input_shape, eps=0.01, a=0.5, beta=0.4, beta_inc=1e-4, max_priority=1):
 
         ## Descriptions of the memory
         self.capacity  = capacity
@@ -134,7 +134,7 @@ class PER(object):
         self.a         = a
         self.beta      = beta
         self.beta_inc  = beta_inc
-        self.max_tderr = max_tderr
+        self.max_priority = max_priority
         self.sumtree   = SumTree(capacity)
 
     def store_transition(self, state, action, reward, next_state, done):
@@ -151,11 +151,13 @@ class PER(object):
         self.mem_cntr += 1
 
         ## We then store the max_priority into the sumtree in the corresponding location
-        self.sumtree.add( self._get_priority(self.max_tderr), data_index )
+        self.sumtree.add( self._get_priority(self.max_priority), data_index )
 
     def _get_priority(self, error):
-        clipped_e = min( np.abs(error), self.max_tderr )
-        return ( clipped_e + self.eps ) ** self.a
+        priority = ( np.abs(error) + self.eps ) ** self.a
+        self.max_priority = max(self.max_priority, priority )
+        
+        return priority
 
     def sample_memory(self, batch_size):
 
@@ -216,7 +218,7 @@ class N_Step_PER(object):
     """ A class which contains the prioritised experience replay buffer for DQN models using
         the sumtree method of sampling with values, also equipped for multiple timestep learning.
     """
-    def __init__(self, capacity, state_input_shape, eps=0.01, a=0.5, beta=0.4, beta_inc=1e-4, max_tderr=1, n_step=3, gamma=0.999):
+    def __init__(self, capacity, state_input_shape, eps=0.01, a=0.5, beta=0.4, beta_inc=1e-4, max_priority=1, n_step=3, gamma=0.999):
 
         ## Descriptions of the memory
         self.capacity  = capacity
@@ -234,7 +236,7 @@ class N_Step_PER(object):
         self.a         = a
         self.beta      = beta
         self.beta_inc  = beta_inc
-        self.max_tderr = max_tderr
+        self.max_priority = max_priority
         self.sumtree   = SumTree(capacity)
 
         ## For N-Step Learning
@@ -265,11 +267,13 @@ class N_Step_PER(object):
         self.mem_cntr += 1
 
         ## We then store the max_priority into the sumtree in the corresponding location
-        self.sumtree.add( self._get_priority(self.max_tderr), data_index )
+        self.sumtree.add( self._get_priority(self.max_priority), data_index )
 
     def _get_priority(self, error):
-        clipped_e = min( np.abs(error), self.max_tderr )
-        return ( clipped_e + self.eps ) ** self.a
+        priority = ( np.abs(error) + self.eps ) ** self.a
+        self.max_priority = max(self.max_priority, priority )
+        
+        return priority
 
     def _get_n_step_info(self):
 

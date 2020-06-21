@@ -107,7 +107,7 @@ class Agent(object):
                  PER_on,      n_step,
                  PEReps,      PERa,
                  PERbeta,     PERb_inc,
-                 PERmax_td,
+                 PERmax,
                  ):
                        
         ## Setting all class variables
@@ -129,14 +129,14 @@ class Agent(object):
         if PER_on and n_step > 1:
             self.memory = MM.N_Step_PER( mem_size, input_dims,
                                 eps=PEReps, a=PERa, beta=PERbeta,
-                                beta_inc=PERb_inc, max_tderr=PERmax_td,
+                                beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
         
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
-                               beta_inc=PERb_inc, max_tderr=PERmax_td )
+                               beta_inc=PERb_inc, max_priority=PERmax )
         
         ## Standard experience replay         
         elif n_step == 1:

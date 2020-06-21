@@ -26,7 +26,7 @@ class QRDuelMLP(nn.Module):
                        input_dims, n_outputs,
                        depth, width, activ,
                        noisy, 
-                       n_atoms ):
+                       n_quartiles ):
         super(QRDuelMLP, self).__init__()
 
         ## Defining the network features
@@ -37,7 +37,7 @@ class QRDuelMLP(nn.Module):
         self.n_outputs  = n_outputs
 
         ## The QR distributional RL parameters
-        self.n_atoms = n_atoms
+        self.n_quartiles = n_quartiles
         
         # Checking if noisy layers will be used
         if noisy:
@@ -57,12 +57,12 @@ class QRDuelMLP(nn.Module):
         self.V_stream = nn.Sequential(OrderedDict([
             ( "V_lin_1",   linear_layer(width, width//2) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, n_atoms) ),
+            ( "V_lin_out", linear_layer(width//2, n_quartiles) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs*n_atoms) ),
+            ( "A_lin_out", linear_layer(width//2, n_outputs*n_quartiles) ),
         ]))
 
         ## Moving the network to the device
@@ -77,8 +77,8 @@ class QRDuelMLP(nn.Module):
             ## Each column is the location of a Q dist quartile
 
         shared_out = self.base_stream(state)
-        V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
-        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_atoms)
+        V = self.V_stream(shared_out).view(-1, 1, self.n_quartiles)
+        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_quartiles)
         Q = V + A - A.mean( dim=1, keepdim=True)
 
         return Q
@@ -113,9 +113,9 @@ class Agent(object):
                  PER_on,      n_step,
                  PEReps,      PERa,
                  PERbeta,     PERb_inc,
-                 PERmax_td,
+                 PERmax,
                  \
-                 n_atoms,
+                 n_quartiles,
                  ):
         
         ## Setting all class variables
@@ -126,10 +126,10 @@ class Agent(object):
         ## The policy and target networks
         self.policy_net = QRDuelMLP( self.name + "_policy_network", net_dir,
                                      input_dims, n_actions, depth, width, activ,
-                                     noisy, n_atoms )
+                                     noisy, n_quartiles )
         self.target_net = QRDuelMLP( self.name + "_target_network", net_dir,
                                      input_dims, n_actions, depth, width, activ,
-                                     noisy, n_atoms )
+                                     noisy, n_quartiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
         ## The gradient descent algorithm used to train the policy network
@@ -140,14 +140,14 @@ class Agent(object):
         if PER_on and n_step > 1:
             self.memory = MM.N_Step_PER( mem_size, input_dims,
                                 eps=PEReps, a=PERa, beta=PERbeta,
-                                beta_inc=PERb_inc, max_tderr=PERmax_td,
+                                beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
         
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
-                               beta_inc=PERb_inc, max_tderr=PERmax_td )
+                               beta_inc=PERb_inc, max_priority=PERmax )
         
         ## Standard experience replay         
         elif n_step == 1:
@@ -163,12 +163,12 @@ class Agent(object):
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_dist = np.zeros( self.n_atoms )
+            act_dist = np.zeros( self.n_quartiles )
         
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_dist = np.zeros( self.n_atoms )
+                act_dist = np.zeros( self.n_quartiles )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
             
         ## Then act purely greedily
@@ -260,8 +260,8 @@ class Agent(object):
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
 
-        tau = T.arange( start=1, end=self.n_atoms+1, dtype=T.float32, device=self.policy_net.device )
-        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_atoms )
+        tau = T.arange( start=1, end=self.n_quartiles+1, dtype=T.float32, device=self.policy_net.device )
+        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_quartiles )
         
         ## To create the difference tensor for each sample in batch various unsqueezes are needed        
         dist_diff = target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
@@ -270,7 +270,7 @@ class Agent(object):
         QRloss = self.huber(dist_diff) * (tau - (dist_diff.detach()<0).float()).abs()
         
         ## We then need to find the mean along the batch dimension, so we get the loss for each sample
-        QRloss = QRloss.mean(dim=-1).mean(dim=-1)
+        QRloss = QRloss.sum(dim=-1).mean(dim=-1)
         
         ## Use this loss as new errors to be used in PER and update the replay
         if self.PER_on:

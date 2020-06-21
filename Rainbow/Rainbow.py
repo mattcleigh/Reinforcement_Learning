@@ -80,7 +80,7 @@ class C51DuelMLP(nn.Module):
         V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
         A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_atoms)
         Q = V + A - A.mean( dim=1, keepdim=True)
-        Q = F.softmax(Q, dim=-1).clamp(min=1e-3)
+        Q = F.softmax(Q, dim=-1)
 
         return Q
 
@@ -114,7 +114,7 @@ class Agent(object):
                  PER_on,      n_step,
                  PEReps,      PERa,
                  PERbeta,     PERb_inc,
-                 PERmax_td,
+                 PERmax,
                  \
                  n_atoms, sup_range
                  ):
@@ -143,14 +143,14 @@ class Agent(object):
         if PER_on and n_step > 1:
             self.memory = MM.N_Step_PER( mem_size, input_dims,
                                 eps=PEReps, a=PERa, beta=PERbeta,
-                                beta_inc=PERb_inc, max_tderr=PERmax_td,
+                                beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
         
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
-                               beta_inc=PERb_inc, max_tderr=PERmax_td )
+                               beta_inc=PERb_inc, max_priority=PERmax )
         
         ## Standard experience replay         
         elif n_step == 1:
@@ -292,7 +292,8 @@ class Agent(object):
         pol_dist = self.policy_net(states)[batch_idxes, actions]
 
         ## Calculating the KL Divergence for each sample in the batch
-        KLdiv = -(target_dist * T.log(pol_dist)).sum(dim=1)
+        e = 1e-6
+        KLdiv = ( target_dist * T.log( e + target_dist / (pol_dist+e) ) ).sum(dim=1)
 
         ## Use the KLDiv as new errors to be used in PER and update the replay
         new_errors = KLdiv.detach().cpu().numpy().squeeze()

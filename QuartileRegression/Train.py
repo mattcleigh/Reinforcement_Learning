@@ -11,9 +11,9 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from QR_Rainbow import Agent
+from QuartileRegression import Agent
 from RLResources.Utils import score_plot
-# from RLResources.Utils import cdf_plot
+from RLResources.Utils import quart_plot
 
 def main():
 
@@ -22,22 +22,22 @@ def main():
     
     render_on = False
     draw_return = False
-    interval = 10
-    best_score = 2000
+    interval = 1
+    best_score = 1500
     
-    env = Car_Env.MainEnv()
-    # env = gym.make("CartPole-v1")
+    # env = Car_Env.MainEnv()
+    env = gym.make("CartPole-v0")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
     
     agent = Agent( 
-                    name    = "car_AI",
+                    name    = "cartpole_AI",
                     net_dir = "Saved_Binaries",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 1e-3,
                     \
-                    input_dims = [28], n_actions = 12,
+                    input_dims = [4], n_actions = 2,
                     depth = 3, width = 128, 
                     activ = nn.PReLU(), noisy = True,
                     \
@@ -46,25 +46,25 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 10000,
+                    target_sync = 100,    freeze_up   = 1000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
-                    PERmax_td = 2,
+                    PERmax = 1,
                     \
-                    n_atoms = 51
+                    n_quartiles = 51
                     )
     
     if load_checkpoint:
-        agent.load_models()
+        agent.load_models("_best")
 
     ## For plotting as it learns
     plt.ion()
     sp = score_plot("QRRB")
     
     if draw_return:
-        dp = cdf_plot()
+        qp = quart_plot(-1, 25)
 
     all_time = 0
     for ep in count():
@@ -97,12 +97,12 @@ def main():
             sys.stdout.flush()
 
             if draw_return and all_time%interval==0:
-                dp.update(dist)
+                qp.update(dist)
 
             if not test_mode:
                 if all_time>=10000 and all_time%10000==0:
                     agent.save_models()
-                if ep_score>=best_score:
+                if ep_score==best_score:
                     agent.save_models("_best")
 
             if done: break

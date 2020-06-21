@@ -22,22 +22,22 @@ def main():
     
     render_on = False
     draw_return = False
-    interval = 10
-    best_score = 2000
+    interval = 1
+    best_score = 1500
     
-    env = Car_Env.MainEnv()
-    # env = gym.make("CartPole-v1")
+    # env = Car_Env.MainEnv()
+    env = gym.make("CartPole-v0")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
     
     agent = Agent( 
-                    name    = "car_AI",
+                    name    = "cartpole_AI",
                     net_dir = "Saved_Binaries",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 1e-3,
                     \
-                    input_dims = [28], n_actions = 12,
+                    input_dims = [4], n_actions = 2,
                     depth = 3, width = 128, 
                     activ = nn.PReLU(), noisy = True,
                     \
@@ -46,14 +46,14 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 10000,
+                    target_sync = 100,    freeze_up   = 1000,
                     \
-                    PER_on    = True, n_step   = 3,
+                    PER_on    = False, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
-                    PERmax_td = 3,
+                    PERmax = 1,
                     \
-                    n_atoms = 51, sup_range = [-1, 25 ]
+                    n_atoms = 51, sup_range = [0, 120]
                     )
                     
     if load_checkpoint:

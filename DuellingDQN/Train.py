@@ -11,7 +11,7 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from ND3QN import Agent
+from DuellingDQN import Agent
 from RLResources.Utils import score_plot
 from RLResources.Utils import value_plot
 
@@ -51,7 +51,7 @@ def main():
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
-                    PERmax_td = 3,
+                    PERmax = 1,
                     )
                     
     if load_checkpoint:
