@@ -12,7 +12,7 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from D3DQN import Agent
+from D3QN import Agent
 from Resources.Utils import score_plot
 from Resources.Utils import value_plot
 
