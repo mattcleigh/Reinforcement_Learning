@@ -1,5 +1,5 @@
 import sys
-home_env = '/home/matthew/Documents/Reinforcement_Learning/'
+home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 import gym
@@ -36,7 +36,7 @@ def main():
                     name    = "car_AI_D3DQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 1e-5,
                     \
                     input_dims = [28], n_actions = 12,
                     depth = 3, width = 128, 

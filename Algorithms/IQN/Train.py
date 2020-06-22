@@ -1,5 +1,5 @@
 import sys
-home_env = '/home/matthew/Documents/Reinforcement_Learning/'
+home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 import gym
@@ -11,8 +11,8 @@ from itertools import count
 import torch as T
 import torch.nn as nn
 
-from Environments import Car_Env
 from IQN import Agent
+from Environments import Car_Env
 from Resources.Utils import score_plot
 from Resources.Utils import quant_plot
 
@@ -47,12 +47,12 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 1000,
+                    target_sync = 1e-3,   freeze_up  = 2000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
-                    PERmax = 1,
+                    PERmax    = 1,
                     \
                     n_quantiles = 32
                     )

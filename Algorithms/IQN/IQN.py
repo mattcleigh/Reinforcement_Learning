@@ -303,7 +303,7 @@ class Agent(object):
         dist_diff = td_target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
 
         ## We then find the loss function using the QR equation
-        QRloss = self.huber(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
+        QRloss = self.huber_fn(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
         
         ## We then need to find the mean along the batch dimension, so we get the loss for each sample
         QRloss = QRloss.sum(dim=-1).mean(dim=-1)
