@@ -104,7 +104,7 @@ class Experience_Replay(object):
         rewards     = self.reward_memory[indices]
         next_states = self.next_state_memory[indices]
         dones       = self.terminal_memory[indices]
-        
+
         ## The PER returns is_weights and indicies so to
         ## unify these methods we return them too, even though
         ## we do not use them.
@@ -156,7 +156,7 @@ class PER(object):
     def _get_priority(self, error):
         priority = ( np.abs(error) + self.eps ) ** self.a
         self.max_priority = max(self.max_priority, priority )
-        
+
         return priority
 
     def sample_memory(self, batch_size):
@@ -272,7 +272,7 @@ class N_Step_PER(object):
     def _get_priority(self, error):
         priority = ( np.abs(error) + self.eps ) ** self.a
         self.max_priority = max(self.max_priority, priority )
-        
+
         return priority
 
     def _get_n_step_info(self):
@@ -358,6 +358,3 @@ class N_Step_PER(object):
     @property
     def n_entries(self):
         return self.sumtree.n_entries
-
-
-

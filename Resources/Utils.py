@@ -53,7 +53,7 @@ class dist_plot(object):
         self.dist_line.set_data( self.sups, dist )
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
-        
+
 
 class quant_plot(object):
     def __init__(self, vmin, vmax):
@@ -69,7 +69,7 @@ class quant_plot(object):
     def update(self, quants):
 
         heights = np.ones( len(quants) ) / 2
-        
+
         self.dist_line.set_data( quants, heights )
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -95,16 +95,3 @@ class value_plot(object):
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
-
-
-
-
-
-
-
-
-
-
-
-
-

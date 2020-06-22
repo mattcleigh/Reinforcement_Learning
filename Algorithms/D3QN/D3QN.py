@@ -17,7 +17,7 @@ from collections import OrderedDict
 
 class DuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
-        This is a dueling network and contains seperate streams 
+        This is a dueling network and contains seperate streams
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
@@ -69,12 +69,12 @@ class DuelMLP(nn.Module):
         ## This is a standard network for the Q evaluation
         ## So the output is a A length vector
             ## Each element is the expected return for each action
-            
+
         shared_out = self.base_stream(state)
         V = self.V_stream(shared_out)
         A = self.A_stream(shared_out)
         Q = V + A - A.mean( dim=1, keepdim=True)
-        
+
         return Q
 
 
@@ -89,14 +89,14 @@ class DuelMLP(nn.Module):
 
 
 class Agent(object):
-    def __init__(self, 
+    def __init__(self,
                  name,
                  net_dir,
                  \
                  gamma,       lr,
                  \
                  input_dims,  n_actions,
-                 depth, width, 
+                 depth, width,
                  activ, noisy,
                  \
                  eps,
@@ -111,7 +111,7 @@ class Agent(object):
                  PERbeta,     PERb_inc,
                  PERmax,
                  ):
-                       
+
         ## Setting all class variables
         self.__dict__.update(locals())
         self.learn_step_counter = 0
@@ -119,7 +119,7 @@ class Agent(object):
         ## The policy and target networks
         self.policy_net = DuelMLP( self.name + "_policy_network", net_dir,
                                    input_dims, n_actions, depth, width, activ, noisy )
-        self.target_net = DuelMLP( self.name + "_target_network", net_dir, 
+        self.target_net = DuelMLP( self.name + "_target_network", net_dir,
                                    input_dims, n_actions, depth, width, activ, noisy )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
@@ -133,35 +133,35 @@ class Agent(object):
                                 eps=PEReps, a=PERa, beta=PERbeta,
                                 beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
-        
+
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
                                beta_inc=PERb_inc, max_priority=PERmax )
-        
-        ## Standard experience replay         
+
+        ## Standard experience replay
         elif n_step == 1:
             self.memory = Experience_Replay( mem_size, input_dims )
-            
+
         else:
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
             exit()
-            
-            
+
+
     def choose_action(self, state):
 
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
             act_value = 0
-        
+
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
                 act_value = 0
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
-            
+
         ## Then act purely greedily
         else:
             with T.no_grad():
@@ -227,7 +227,7 @@ class Agent(object):
 
         ## We use the range of up to batch_size just for indexing methods
         batch_idxes = list(range(self.batch_size))
-        
+
         ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
 
@@ -243,10 +243,10 @@ class Agent(object):
             ## Calculate the target values based on the Bellman Equation
             td_target = rewards + ( self.gamma ** self.n_step ) * tar_Q_next * (~dones)
             td_target = td_target.detach()
-            
+
         ## Now we calculate the network estimates for the state values
         pol_Q = self.policy_net(states)[batch_idxes, actions]
-        
+
         ## Calculate the TD-Errors to be used in PER and update the replay
         if self.PER_on:
             new_errors = T.abs(pol_Q - td_target).detach().cpu().numpy().squeeze()
@@ -263,25 +263,3 @@ class Agent(object):
         self.learn_step_counter += 1
 
         return loss.item()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

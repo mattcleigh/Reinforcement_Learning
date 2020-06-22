@@ -39,4 +39,3 @@ class FactNoisyLinear(nn.Linear):
             full_bias = self.bias + self.bias_noisy * f_eps_out.t().squeeze()
 
         return F.linear( input, full_weight, full_bias )
-

@@ -20,26 +20,26 @@ def main():
 
     test_mode = False
     load_checkpoint = False
-    
+
     render_on = False
     draw_return = False
     interval = 10
     best_score = 2000
-    
+
     # env = Car_Env.MainEnv()
     env = gym.make("LunarLander-v2")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
-    
-    agent = Agent( 
+
+    agent = Agent(
                     name    = "lander_AI_D3DQN",
                     net_dir = home_env + "Saved_Models",
                     \
                     gamma = 0.99, lr = 5e-4,
                     \
                     input_dims = [8], n_actions = 4,
-                    depth = 2, width = 128, 
+                    depth = 2, width = 128,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
@@ -54,7 +54,7 @@ def main():
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax = 1,
                     )
-                    
+
     if load_checkpoint:
         agent.load_models()
 
@@ -79,7 +79,7 @@ def main():
             action, value = agent.choose_action(state)
             next_state, reward, done, info = env.step(action)
             eps = agent.eps
-            
+
             if not test_mode:
                 agent.store_transition( state, action, reward, next_state, done )
                 loss = agent.train()
@@ -89,7 +89,7 @@ def main():
 
             ep_score += reward
             all_time += 1.0
-            
+
             print( "Score = {:.7}     \r".format( ep_score ), end="" )
             sys.stdout.flush()
 
@@ -114,19 +114,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

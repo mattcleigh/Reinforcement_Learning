@@ -18,14 +18,14 @@ from collections import OrderedDict
 class C51DuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
         This is a distributional arcitecture for the C51 algoritm.
-        This is a dueling network and contains seperate streams 
+        This is a dueling network and contains seperate streams
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
                        depth, width, activ,
-                       noisy, 
+                       noisy,
                        n_atoms ):
         super(C51DuelMLP, self).__init__()
 
@@ -75,7 +75,7 @@ class C51DuelMLP(nn.Module):
         ## So the output is a matrix AxN
             ## Each row is an action
             ## Each column is the prob of a Q atom
-            
+
         shared_out = self.base_stream(state)
         V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
         A = self.A_stream(shared_out).view(-1, self.n_actions, self.n_atoms)
@@ -96,14 +96,14 @@ class C51DuelMLP(nn.Module):
 
 
 class Agent(object):
-    def __init__(self, 
+    def __init__(self,
                  name,
                  net_dir,
                  \
                  gamma,       lr,
                  \
                  input_dims,  n_actions,
-                 depth, width, 
+                 depth, width,
                  activ, noisy,
                  \
                  eps,
@@ -120,11 +120,11 @@ class Agent(object):
                  \
                  n_atoms, sup_range
                  ):
-        
+
         ## Setting all class variables
         self.__dict__.update(locals())
         self.learn_step_counter = 0
-        
+
 
         ## The policy and target networks
         self.policy_net = C51DuelMLP( self.name + "_policy_network", net_dir,
@@ -134,7 +134,7 @@ class Agent(object):
                                       input_dims, n_actions, depth, width, activ,
                                       noisy, n_atoms )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
-        
+
         ## Additional C51 Algorithm variables
         self.vmin = sup_range[0]
         self.vmax = sup_range[1]
@@ -150,21 +150,21 @@ class Agent(object):
                                 eps=PEReps, a=PERa, beta=PERbeta,
                                 beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
-        
+
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
                                beta_inc=PERb_inc, max_priority=PERmax )
-        
-        ## Standard experience replay         
+
+        ## Standard experience replay
         elif n_step == 1:
             self.memory = Experience_Replay( mem_size, input_dims )
-            
+
         else:
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
             exit()
-            
+
 
     def choose_action(self, state):
 
@@ -172,13 +172,13 @@ class Agent(object):
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
             act_dist = np.zeros( self.n_atoms )
-        
+
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
                 act_dist = np.zeros( self.n_atoms )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
-            
+
         ## Then act purely greedily
         else:
             with T.no_grad():
@@ -316,25 +316,3 @@ class Agent(object):
         self.learn_step_counter += 1
 
         return loss.item()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

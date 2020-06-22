@@ -20,26 +20,26 @@ def main():
 
     test_mode = False
     load_checkpoint = False
-    
+
     render_on = False
     draw_return = False
     interval = 10
     best_score = 1500
-    
+
     env = Car_Env.MainEnv( rand_start = True )
     # env = gym.make("CartPole-v0")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
-    
-    agent = Agent( 
+
+    agent = Agent(
                     name    = "car_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
                     gamma = 0.99, lr = 5e-5,
                     \
                     input_dims = [28], n_actions = 12,
-                    depth = 3, width = 256, 
+                    depth = 3, width = 256,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
@@ -56,14 +56,14 @@ def main():
                     \
                     n_quantiles = 32
                     )
-    
+
     if load_checkpoint:
         agent.load_models("_best")
 
     ## For plotting as it learns
     plt.ion()
     sp = score_plot("IQN")
-    
+
     if draw_return:
         qp = quart_plot(0, 100)
 
@@ -81,7 +81,7 @@ def main():
             action, dist = agent.choose_action(state)
             next_state, reward, done, info = env.step(action)
             eps = agent.eps
-            
+
             if not test_mode:
                 agent.store_transition( state, action, reward, next_state, done )
                 loss = agent.train()
@@ -91,7 +91,7 @@ def main():
 
             ep_score += reward
             all_time += 1.0
-            
+
             print( "Score = {:.7}     \r".format( ep_score ), end="" )
             sys.stdout.flush()
 
@@ -116,19 +116,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

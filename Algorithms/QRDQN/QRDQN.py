@@ -18,14 +18,14 @@ from collections import OrderedDict
 class QRDuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
         This is a distributional arcitecture for QR.
-        This is a dueling network and contains seperate streams 
+        This is a dueling network and contains seperate streams
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
                        depth, width, activ,
-                       noisy, 
+                       noisy,
                        n_quantiles ):
         super(QRDuelMLP, self).__init__()
 
@@ -38,7 +38,7 @@ class QRDuelMLP(nn.Module):
 
         ## The QR distributional RL parameters
         self.n_quantiles = n_quantiles
-        
+
         # Checking if noisy layers will be used
         if noisy:
             linear_layer = ll.FactNoisyLinear
@@ -95,14 +95,14 @@ class QRDuelMLP(nn.Module):
 
 
 class Agent(object):
-    def __init__(self, 
+    def __init__(self,
                  name,
                  net_dir,
                  \
                  gamma,       lr,
                  \
                  input_dims,  n_actions,
-                 depth, width, 
+                 depth, width,
                  activ, noisy,
                  \
                  eps,
@@ -119,7 +119,7 @@ class Agent(object):
                  \
                  n_quantiles,
                  ):
-        
+
         ## Setting all class variables
         self.__dict__.update(locals())
         self.learn_step_counter = 0
@@ -143,35 +143,35 @@ class Agent(object):
                                 eps=PEReps, a=PERa, beta=PERbeta,
                                 beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
-        
+
         ## Priotised experience replay
         elif PER_on:
             self.memory = PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
                                beta_inc=PERb_inc, max_priority=PERmax )
-        
-        ## Standard experience replay         
+
+        ## Standard experience replay
         elif n_step == 1:
             self.memory = Experience_Replay( mem_size, input_dims )
-            
+
         else:
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
             exit()
-            
-            
+
+
     def choose_action(self, state):
 
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
             act_dist = np.zeros( self.n_quantiles )
-        
+
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
                 act_dist = np.zeros( self.n_quantiles )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
-            
+
         ## Then act purely greedily
         else:
             with T.no_grad():
@@ -182,8 +182,8 @@ class Agent(object):
                 act_dist = dist[0][action].cpu().numpy()
 
         return action, act_dist
-        
-        
+
+
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
@@ -235,44 +235,44 @@ class Agent(object):
         next_states = T.tensor(next_states).to(self.policy_net.device)
         dones       = T.tensor(dones).to(self.policy_net.device).reshape(-1, 1)
         is_weights  = T.tensor(is_weights).to(self.policy_net.device)
-        
+
         ## We use the range of up to batch_size just for indexing methods
         batch_idxes = list(range(self.batch_size))
 
         ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
-            
+
             ## First we need the next state distribution using the policy network for double Q learning
             pol_dist_next = self.policy_net(next_states)
-            
+
             ## We then find the Q-values of the actions by summing over the supports
             pol_Q_next = T.sum( pol_dist_next, dim=-1 )
-            
+
             ## Can then determine the optimum actions
             next_actions = T.argmax(pol_Q_next, dim=1)
-            
+
             ## We now use the target network to get the distributions of these actions
             tar_dist_next = self.target_net(next_states)[batch_idxes, next_actions]
-            
-            ## We can then find the new supports using the distributional Bellman Equation            
+
+            ## We can then find the new supports using the distributional Bellman Equation
             td_target_dist = rewards + ( self.gamma ** self.n_step ) * tar_dist_next * (~dones)
             td_target_dist = td_target_dist.detach()
-            
+
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
 
         taus = T.arange( start=1, end=self.n_quantiles+1, dtype=T.float32, device=self.policy_net.device )
         taus = ( 2 * ( taus - 1 ) + 1 ) / ( 2 * self.n_quantiles )
-        
-        ## To create the difference tensor for each sample in batch various unsqueezes are needed        
+
+        ## To create the difference tensor for each sample in batch various unsqueezes are needed
         dist_diff = td_target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
-        
+
         ## We then find the loss function using the QR equation
         QRloss = self.huber_fn(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
-        
+
         ## We then need to find the mean along the batch dimension, so we get the loss for each sample
         QRloss = QRloss.sum(dim=-1).mean(dim=-1)
-        
+
         ## Use this loss as new errors to be used in PER and update the replay
         if self.PER_on:
             new_errors = QRloss.detach().cpu().numpy().squeeze()
@@ -289,25 +289,3 @@ class Agent(object):
         self.learn_step_counter += 1
 
         return loss.item()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
