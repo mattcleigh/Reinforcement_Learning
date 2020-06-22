@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
+home_env = '/home/matthew/Documents/Reinforcement_Learning/'
+sys.path.append(home_env)
 
 import gym
 import time
@@ -11,9 +12,9 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from IQN import Agent
-from RLResources.Utils import score_plot
-from RLResources.Utils import quart_plot
+from Rainbow import Agent
+from Resources.Utils import score_plot
+from Resources.Utils import dist_plot
 
 def main():
 
@@ -21,8 +22,8 @@ def main():
     load_checkpoint = False
     
     render_on = False
-    draw_return = True
-    interval = 10
+    draw_return = False
+    interval = 1
     best_score = 1500
     
     # env = Car_Env.MainEnv()
@@ -32,8 +33,8 @@ def main():
     # exit()
     
     agent = Agent( 
-                    name    = "cartpole_cos_AI",
-                    net_dir = "Saved_Binaries",
+                    name    = "cartpole_AI_C51",
+                    net_dir = home_env + "Saved_Models",
                     \
                     gamma = 0.99, lr = 1e-3,
                     \
@@ -46,25 +47,25 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 100,    freeze_up  = 1000,
+                    target_sync = 100,    freeze_up   = 1000,
                     \
-                    PER_on    = True, n_step   = 3,
+                    PER_on    = False, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax = 1,
                     \
-                    n_quantiles = 32
+                    n_atoms = 51, sup_range = [0, 120]
                     )
-    
+                    
     if load_checkpoint:
-        agent.load_models("_best")
+        agent.load_models()
 
     ## For plotting as it learns
     plt.ion()
-    sp = score_plot("IQN")
-    
+    sp = score_plot("C51")
+
     if draw_return:
-        qp = quart_plot(0, 100)
+        dp = dist_plot( agent.vmin, agent.vmax, agent.n_atoms)
 
     all_time = 0
     for ep in count():
@@ -72,7 +73,6 @@ def main():
         state = env.reset()
         ep_score = 0.0
         ep_loss  = 0.0
-        ep_error = 0.0
 
         for t in count():
             if render_on:
@@ -84,9 +84,8 @@ def main():
             
             if not test_mode:
                 agent.store_transition( state, action, reward, next_state, done )
-                loss, error = agent.train()
-                ep_loss  += loss
-                ep_error += error
+                loss = agent.train()
+                ep_loss += loss
 
             state = next_state
 
@@ -97,7 +96,7 @@ def main():
             sys.stdout.flush()
 
             if draw_return and all_time%interval==0:
-                qp.update(dist)
+                dp.update(dist)
 
             if not test_mode:
                 if all_time>=10000 and all_time%10000==0:
@@ -108,10 +107,9 @@ def main():
             if done: break
 
         ep_loss  /= (t+1)
-        ep_error /= (t+1)
 
-        print( "Episode {}: Reward = {:.7}, Loss = {:4.3f}, Error = {:4.3f}, Eps = {:4.3f}, Episode Time = {}, Total Time = {}".format( \
-                                         ep, ep_score, ep_loss, ep_error, eps, t+1, all_time ) )
+        print( "Episode {}: Reward = {:.7}, Loss = {:4.3f}, Eps = {:4.3f}, Episode Time = {}, Total Time = {}".format( \
+                                         ep, ep_score, ep_loss, eps, t+1, all_time ) )
 
         sp.update(ep_score)
 

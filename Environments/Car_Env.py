@@ -6,7 +6,7 @@ import time
 import numpy as np
 import numpy.random as rd
 
-from RLResources import Geometry
+from Resources import Geometry
 import torch
 import torch.nn as nn
 
@@ -17,8 +17,9 @@ from pyglet.window import key
 class MainEnv:
     """ The environment of the race track
     """
-    def __init__(self):
+    def __init__(self, rand_start = False ):
         self.viewer = None
+        self.rand_start = rand_start
 
         ## The constants defining physics of the model
         self.time       = 0
@@ -28,8 +29,6 @@ class MainEnv:
         self.length     = 5.0
         self.width      = 3.0
         
-        self.rand_start = True
-
         self.turn_max   = 0.3
         self.engine_max = 1.0
         self.brake_max  = 0.3
@@ -74,7 +73,6 @@ class MainEnv:
                                  ( [ 70.0,  172.0 ], [  1.0,  0.0  ], 8  ),
                                  ( [ 172.0, 166.0 ], [  0.0, -1.0  ], 13 ),
                                  ( [ 130.0, 140.0 ], [ -1.0,  0.0  ], 16 ),
-                                 ( [ 60.0,  126.0 ], [  0.0, -1.0  ], 20 ),
                                  ( [ 130.0, 116.0 ], [  1.0,  0.0  ], 24 ),
                                  ( [ 176.0, 80.0  ], [  0.0, -1.0  ], 28 ),
                                  ( [ 112.0, 30.0  ], [ -1.0,  0.0  ], 33 ) ]

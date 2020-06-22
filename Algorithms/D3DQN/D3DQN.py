@@ -1,8 +1,8 @@
 import sys
 sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
 
-from RLResources import Layers as ll
-from RLResources import MemoryMethods as MM
+from Resources import Layers as ll
+from Resources import MemoryMethods as MM
 
 import os
 import time
@@ -22,7 +22,7 @@ class DuelMLP(nn.Module):
         The seperate streams can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
-                       input_dims, n_outputs,
+                       input_dims, n_actions,
                        depth, width, activ,
                        noisy ):
         super(DuelMLP, self).__init__()
@@ -32,7 +32,7 @@ class DuelMLP(nn.Module):
         self.chpt_dir   = chpt_dir
         self.chpt_file  = os.path.join(self.chpt_dir, self.name)
         self.input_dims = input_dims
-        self.n_outputs  = n_outputs
+        self.n_actions  = n_actions
 
         # Checking if noisy layers will be used
         if noisy:
@@ -40,12 +40,12 @@ class DuelMLP(nn.Module):
         else:
             linear_layer = nn.Linear
 
-        ## Defining the shared layer structure
+        ## Defining the base layer structure
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
+            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "base_act_{}".format(l_num), activ ))
         self.base_stream = nn.Sequential(OrderedDict(layers))
 
         ## Defining the dueling network arcitecture
@@ -57,7 +57,7 @@ class DuelMLP(nn.Module):
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs) ),
+            ( "A_lin_out", linear_layer(width//2, n_actions) ),
         ]))
 
         ## Moving the network to the device
@@ -77,9 +77,11 @@ class DuelMLP(nn.Module):
         
         return Q
 
+
     def save_checkpoint(self, flag=""):
         print("... saving network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
+
 
     def load_checkpoint(self, flag=""):
         print("... loading network checkpoint ..." )
@@ -204,7 +206,7 @@ class Agent(object):
 
         ## We dont train until the memory is at least one batch_size
         if self.memory.mem_cntr < max(self.batch_size, self.freeze_up):
-            return 0, 0
+            return 0
 
         ## We check if the target network needs to be replaced
         self.sync_target_network()
@@ -239,20 +241,19 @@ class Agent(object):
             tar_Q_next = self.target_net(next_states)[batch_idxes, next_actions]
 
             ## Calculate the target values based on the Bellman Equation
-            td_targets = rewards + ( self.gamma ** self.n_step ) * tar_Q_next * (~dones)
-            td_targets = td_targets.detach()
+            td_target = rewards + ( self.gamma ** self.n_step ) * tar_Q_next * (~dones)
+            td_target = td_target.detach()
             
         ## Now we calculate the network estimates for the state values
         pol_Q = self.policy_net(states)[batch_idxes, actions]
         
         ## Calculate the TD-Errors to be used in PER and update the replay
         if self.PER_on:
-            new_errors = T.abs(pol_Q - td_targets).detach().cpu().numpy().squeeze()
+            new_errors = T.abs(pol_Q - td_target).detach().cpu().numpy().squeeze()
             self.memory.batch_update(indices, new_errors)
-            error = new_errors.mean()
 
-        ## Calculate the loss individually for each element and perform graidient desc
-        loss = self.loss_fn( pol_Q, td_targets )
+        ## Now we use the loss for graidient desc, applying is weights if using PER
+        loss = self.loss_fn( pol_Q, td_target )
         if self.PER_on:
             loss = loss * is_weights.unsqueeze(1)
         loss = loss.mean()
@@ -261,7 +262,7 @@ class Agent(object):
 
         self.learn_step_counter += 1
 
-        return loss.item(), error
+        return loss.item()
 
 
 

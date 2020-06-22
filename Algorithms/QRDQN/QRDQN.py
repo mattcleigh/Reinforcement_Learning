@@ -1,8 +1,8 @@
 import sys
 sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
 
-from RLResources import Layers as ll
-from RLResources import MemoryMethods as MM
+from Resources import Layers as ll
+from Resources import MemoryMethods as MM
 
 import os
 import time
@@ -15,54 +15,54 @@ import torch.optim as optim
 import torch.nn.functional as F
 from collections import OrderedDict
 
-class C51DuelMLP(nn.Module):
+class QRDuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
-        This is a distributional arcitecture for the C51 algoritm.
+        This is a distributional arcitecture for QR.
         This is a dueling network and contains seperate streams 
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
-                       input_dims, n_outputs,
+                       input_dims, n_actions,
                        depth, width, activ,
                        noisy, 
-                       n_atoms ):
-        super(C51DuelMLP, self).__init__()
+                       n_quantiles ):
+        super(QRDuelMLP, self).__init__()
 
         ## Defining the network features
         self.name       = name
         self.chpt_dir   = chpt_dir
         self.chpt_file  = os.path.join(self.chpt_dir, self.name)
         self.input_dims = input_dims
-        self.n_outputs  = n_outputs
+        self.n_actions  = n_actions
 
-        ## The c51 distributional RL parameters
-        self.n_atoms = n_atoms
-
+        ## The QR distributional RL parameters
+        self.n_quantiles = n_quantiles
+        
         # Checking if noisy layers will be used
         if noisy:
             linear_layer = ll.FactNoisyLinear
         else:
             linear_layer = nn.Linear
 
-        ## Defining the shared layer structure
+        ## Defining the base layer structure
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
+            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "base_act_{}".format(l_num), activ ))
         self.base_stream = nn.Sequential(OrderedDict(layers))
 
         ## Defining the dueling network arcitecture
         self.V_stream = nn.Sequential(OrderedDict([
             ( "V_lin_1",   linear_layer(width, width//2) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, n_atoms) ),
+            ( "V_lin_out", linear_layer(width//2, n_quantiles) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs*n_atoms) ),
+            ( "A_lin_out", linear_layer(width//2, n_actions*n_quantiles) ),
         ]))
 
         ## Moving the network to the device
@@ -71,22 +71,23 @@ class C51DuelMLP(nn.Module):
 
 
     def forward(self, state):
-        ## This is a network for the C51 algorithm
+        ## This is a network for the QR algorithm
         ## So the output is a matrix AxN
             ## Each row is an action
-            ## Each column is the prob of a Q atom
-            
+            ## Each column is the location of a Q dist quantile
+
         shared_out = self.base_stream(state)
-        V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
-        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_atoms)
+        V = self.V_stream(shared_out).view(-1, 1, self.n_quantiles)
+        A = self.A_stream(shared_out).view(-1, self.n_actions, self.n_quantiles)
         Q = V + A - A.mean( dim=1, keepdim=True)
-        Q = F.softmax(Q, dim=-1)
 
         return Q
+
 
     def save_checkpoint(self, flag=""):
         print("... saving network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
+
 
     def load_checkpoint(self, flag=""):
         print("... loading network checkpoint ..." )
@@ -116,28 +117,25 @@ class Agent(object):
                  PERbeta,     PERb_inc,
                  PERmax,
                  \
-                 n_atoms, sup_range
+                 n_quantiles,
                  ):
         
         ## Setting all class variables
         self.__dict__.update(locals())
         self.learn_step_counter = 0
-        self.vmin = sup_range[0]
-        self.vmax = sup_range[1]
-        self.delz = (self.vmax-self.vmin) / (self.n_atoms-1)
 
         ## The policy and target networks
-        self.policy_net = C51DuelMLP( self.name + "_policy_network", net_dir,
-                                      input_dims, n_actions, depth, width, activ,
-                                      noisy, n_atoms )
-        self.target_net = C51DuelMLP( self.name + "_target_network", net_dir,
-                                      input_dims, n_actions, depth, width, activ,
-                                      noisy, n_atoms )
+        self.policy_net = QRDuelMLP( self.name + "_policy_network", net_dir,
+                                     input_dims, n_actions, depth, width, activ,
+                                     noisy, n_quantiles )
+        self.target_net = QRDuelMLP( self.name + "_target_network", net_dir,
+                                     input_dims, n_actions, depth, width, activ,
+                                     noisy, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
-        self.supports = T.linspace( *sup_range, n_atoms ).to(self.policy_net.device)
 
         ## The gradient descent algorithm used to train the policy network
         self.optimiser = optim.Adam( self.policy_net.parameters(), lr = lr )
+        self.huber_fn  = lambda x: T.where( x.abs() < 1, 0.5 * x.pow(2), (x.abs() - 0.5) )
 
         ## Priotised experience replay for multi-timestep learning
         if PER_on and n_step > 1:
@@ -160,18 +158,18 @@ class Agent(object):
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
             exit()
             
-
+            
     def choose_action(self, state):
 
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_dist = np.zeros( self.n_atoms )
+            act_dist = np.zeros( self.n_quantiles )
         
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_dist = np.zeros( self.n_atoms )
+                act_dist = np.zeros( self.n_quantiles )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
             
         ## Then act purely greedily
@@ -179,13 +177,13 @@ class Agent(object):
             with T.no_grad():
                 state_tensor = T.tensor( [state], device=self.target_net.device, dtype=T.float32 )
                 dist = self.policy_net(state_tensor)
-                Q_values = T.matmul( dist, self.supports )
+                Q_values = T.sum( dist, dim=-1 )
                 action = T.argmax(Q_values, dim=1).item()
                 act_dist = dist[0][action].cpu().numpy()
 
         return action, act_dist
-
-
+        
+        
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
@@ -219,7 +217,7 @@ class Agent(object):
 
         ## We dont train until the memory is at least one batch_size
         if self.memory.mem_cntr < max(self.batch_size, self.freeze_up):
-            return 0, 0
+            return 0
 
         ## We check if the target network needs to be replaced
         self.sync_target_network()
@@ -237,71 +235,51 @@ class Agent(object):
         next_states = T.tensor(next_states).to(self.policy_net.device)
         dones       = T.tensor(dones).to(self.policy_net.device).reshape(-1, 1)
         is_weights  = T.tensor(is_weights).to(self.policy_net.device)
-
+        
         ## We use the range of up to batch_size just for indexing methods
         batch_idxes = list(range(self.batch_size))
 
         ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
-
+            
             ## First we need the next state distribution using the policy network for double Q learning
             pol_dist_next = self.policy_net(next_states)
-
+            
             ## We then find the Q-values of the actions by summing over the supports
-            pol_Q_next = T.matmul( pol_dist_next, self.supports )
-
+            pol_Q_next = T.sum( pol_dist_next, dim=-1 )
+            
             ## Can then determine the optimum actions
             next_actions = T.argmax(pol_Q_next, dim=1)
-
+            
             ## We now use the target network to get the distributions of these actions
             tar_dist_next = self.target_net(next_states)[batch_idxes, next_actions]
-
-            ## We can then find the new supports using the distributional Bellman Equation
-            new_supports = rewards + ( self.gamma ** self.n_step ) * self.supports * (~dones)
-            new_supports = new_supports.clamp(self.vmin, self.vmax)
-
-            ## Must calculate the closest indicies for the projection
-            ind = ( new_supports - self.vmin ) / self.delz
-            dn = ind.floor().long()
-            up = ind.ceil().long()
-
-            ## Also important is where the projections align perfectly
-            ones = -T.ones(tar_dist_next.size(), device=self.target_net.device )
-            up_is_dn = T.where(up-dn==0, up.float(), ones).long()
-            updn_mask = (up_is_dn>-1)
-            up_is_dn.clamp_(min=0)
-
-            ## We begin with zeros for the target dist using current supports
-            target_dist = T.zeros( tar_dist_next.size(), device=self.target_net.device )
-
-            ## We complete the projections using the index_add method and the offsets
-            offset = ( T.linspace( 0, (self.batch_size-1)*self.n_atoms, self.batch_size).long()
-                                    .unsqueeze(1)
-                                    .expand(self.batch_size, self.n_atoms)
-                                    .to(self.target_net.device) )
-
-            target_dist.view(-1).index_add_( 0, (dn + offset).view(-1),
-                                        (tar_dist_next * (up.float() - ind)).view(-1) )
-            target_dist.view(-1).index_add_( 0, (up + offset).view(-1),
-                                        (tar_dist_next * (ind - dn.float())).view(-1) )
-            target_dist.view(-1).index_add_( 0, (up_is_dn + offset).view(-1),
-                                        (tar_dist_next * updn_mask).view(-1) )
-            target_dist = target_dist.detach()
-
+            
+            ## We can then find the new supports using the distributional Bellman Equation            
+            td_target_dist = rewards + ( self.gamma ** self.n_step ) * tar_dist_next * (~dones)
+            td_target_dist = td_target_dist.detach()
+            
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
 
-        ## Calculating the KL Divergence for each sample in the batch
-        e = 1e-6
-        KLdiv = ( target_dist * T.log( e + target_dist / (pol_dist+e) ) ).sum(dim=1)
+        taus = T.arange( start=1, end=self.n_quantiles+1, dtype=T.float32, device=self.policy_net.device )
+        taus = ( 2 * ( taus - 1 ) + 1 ) / ( 2 * self.n_quantiles )
+        
+        ## To create the difference tensor for each sample in batch various unsqueezes are needed        
+        dist_diff = td_target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
+        
+        ## We then find the loss function using the QR equation
+        QRloss = self.huber(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
+        
+        ## We then need to find the mean along the batch dimension, so we get the loss for each sample
+        QRloss = QRloss.sum(dim=-1).mean(dim=-1)
+        
+        ## Use this loss as new errors to be used in PER and update the replay
+        if self.PER_on:
+            new_errors = QRloss.detach().cpu().numpy().squeeze()
+            self.memory.batch_update(indices, new_errors)
 
-        ## Use the KLDiv as new errors to be used in PER and update the replay
-        new_errors = KLdiv.detach().cpu().numpy().squeeze()
-        self.memory.batch_update(indices, new_errors)
-        error = new_errors.mean()
-
-        ## Now we use the KLDiv for gradient descent
-        loss = KLdiv
+        ## Now we use the loss for graidient desc, applying is weights if using PER
+        loss = QRloss
         if self.PER_on:
             loss = loss * is_weights
         loss = loss.mean()
@@ -310,7 +288,7 @@ class Agent(object):
 
         self.learn_step_counter += 1
 
-        return loss.item(), error
+        return loss.item()
 
 
 

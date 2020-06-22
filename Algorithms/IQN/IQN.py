@@ -1,8 +1,8 @@
 import sys
 sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
 
-from RLResources import Layers as ll
-from RLResources import MemoryMethods as MM
+from Resources import Layers as ll
+from Resources import MemoryMethods as MM
 
 import os
 import time
@@ -15,29 +15,30 @@ import torch.optim as optim
 import torch.nn.functional as F
 from collections import OrderedDict
 
-class QRDuelMLP(nn.Module):
+class IQNDuelMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
-        This is a distributional arcitecture for QR.
-        This is a dueling network and contains seperate streams 
-        for value and advantage evaluation.
-        The seperate streams can be equipped with noisy layers.
+        This is a distributional arcitecture for IQN. So it is broken into
+        a base_stream, a tau embedding stream, and a final stream.
+        The final stream has a duelling arcitecture and can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
-                       input_dims, n_outputs,
+                       input_dims, n_actions,
                        depth, width, activ,
                        noisy, 
                        n_quantiles ):
-        super(QRDuelMLP, self).__init__()
+        super(IQNDuelMLP, self).__init__()
 
         ## Defining the network features
         self.name       = name
         self.chpt_dir   = chpt_dir
         self.chpt_file  = os.path.join(self.chpt_dir, self.name)
         self.input_dims = input_dims
-        self.n_outputs  = n_outputs
+        self.n_actions  = n_actions
 
-        ## The QR distributional RL parameters
+        ## The IQN distributional RL parameters
         self.n_quantiles = n_quantiles
+        self.quant_emb_dim = 64
+        self.taus = None
         
         # Checking if noisy layers will be used
         if noisy:
@@ -45,47 +46,82 @@ class QRDuelMLP(nn.Module):
         else:
             linear_layer = nn.Linear
 
-        ## Defining the shared layer structure
+        ## Defining the base layer structure
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
+            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "base_act_{}".format(l_num), activ ))
         self.base_stream = nn.Sequential(OrderedDict(layers))
-
+        
+        ## Defining the tau embedding stream, only one linear layer
+        self.embed_stream = nn.Sequential(OrderedDict([
+            ( "em_lin_1",   nn.Linear(self.quant_emb_dim, width) ),
+            ( "em_act_1",   activ ),
+        ]))
+        
         ## Defining the dueling network arcitecture
         self.V_stream = nn.Sequential(OrderedDict([
             ( "V_lin_1",   linear_layer(width, width//2) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, n_quantiles) ),
+            ( "V_lin_out", linear_layer(width//2, 1) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs*n_quantiles) ),
+            ( "A_lin_out", linear_layer(width//2, n_actions) ),
         ]))
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
-
     def forward(self, state):
-        ## This is a network for the QR algorithm
-        ## So the output is a matrix AxN
-            ## Each row is an action
-            ## Each column is the location of a Q dist quantile
+        
+        ## We record the batch size as it will determine the amount of random samples to generate
+        batch_size = state.size(0)
+        n_taus = batch_size * self.n_quantiles
+        
+        ## We pass the state through the base layer
+        base_out = self.base_stream(state)
+        
+        ## We have to pass through each sample k many times, so lets just repeat the same output
+        rpt_base_out = T.repeat_interleave( base_out, self.n_quantiles, dim=0 )
 
-        shared_out = self.base_stream(state)
-        V = self.V_stream(shared_out).view(-1, 1, self.n_quantiles)
-        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_quantiles)
+        ## We now apply the prebuilt embedding layer
+        ## First we need to generate the tau samples and keep them! They will be used for regression!
+        self.taus = T.rand( (n_taus,1), dtype=T.float32, device=self.device )
+        
+        ## We fist apply the cosine layer
+        Is = T.arange(1, self.quant_emb_dim+1, dtype=T.float32, device=self.device )
+        emb_in = T.cos( Is * np.pi * self.taus ) 
+
+        ## Then we apply the embedding linear layer
+        emb_out = self.embed_stream(emb_in)
+
+        ## We then combine the streams together using the hadamard product
+        merged = rpt_base_out*emb_out
+
+        ## Now we feed the merged layer through the duelling stream
+        ## Breaking up each sample into batch, k, val/actions
+        V = self.V_stream(merged).view(batch_size, self.n_quantiles, -1)
+        A = self.A_stream(merged).view(batch_size, self.n_quantiles, self.n_actions)
+        
+        ## We now transpose the last two dims to be the same as the other algorithms (QR and C51)
+        ## batch, actions, k
+        V = V.transpose( -1, -2 )
+        A = A.transpose( -1, -2 )
+        
+        ## Finally we combing the dueling stream
         Q = V + A - A.mean( dim=1, keepdim=True)
-
+        
         return Q
 
+        
     def save_checkpoint(self, flag=""):
         print("... saving network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
+
 
     def load_checkpoint(self, flag=""):
         print("... loading network checkpoint ..." )
@@ -120,21 +156,20 @@ class Agent(object):
         
         ## Setting all class variables
         self.__dict__.update(locals())
-        self.epsilon = 0
         self.learn_step_counter = 0
 
         ## The policy and target networks
-        self.policy_net = QRDuelMLP( self.name + "_policy_network", net_dir,
-                                     input_dims, n_actions, depth, width, activ,
-                                     noisy, n_quantiles )
-        self.target_net = QRDuelMLP( self.name + "_target_network", net_dir,
-                                     input_dims, n_actions, depth, width, activ,
-                                     noisy, n_quantiles )
+        self.policy_net = IQNDuelMLP( self.name + "_policy_network", net_dir,
+                                      input_dims, n_actions, depth, width, activ,
+                                      noisy, n_quantiles )
+        self.target_net = IQNDuelMLP( self.name + "_target_network", net_dir,
+                                      input_dims, n_actions, depth, width, activ,
+                                      noisy, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
         ## The gradient descent algorithm used to train the policy network
         self.optimiser = optim.Adam( self.policy_net.parameters(), lr = lr )
-        self.huber = lambda x: T.where( x.abs() < 1, 0.5 * x.pow(2), (x.abs() - 0.5) )
+        self.huber_fn  = lambda x: T.where( x.abs() < 1, 0.5 * x.pow(2), (x.abs() - 0.5) )
 
         ## Priotised experience replay for multi-timestep learning
         if PER_on and n_step > 1:
@@ -216,7 +251,7 @@ class Agent(object):
 
         ## We dont train until the memory is at least one batch_size
         if self.memory.mem_cntr < max(self.batch_size, self.freeze_up):
-            return 0, 0
+            return 0
 
         ## We check if the target network needs to be replaced
         self.sync_target_network()
@@ -254,20 +289,21 @@ class Agent(object):
             tar_dist_next = self.target_net(next_states)[batch_idxes, next_actions]
             
             ## We can then find the new supports using the distributional Bellman Equation            
-            target_dist = rewards + ( self.gamma ** self.n_step ) * tar_dist_next * (~dones)
-            target_dist = target_dist.detach()
+            td_target_dist = rewards + ( self.gamma ** self.n_step ) * tar_dist_next * (~dones)
+            td_target_dist = td_target_dist.detach()
             
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
-
-        tau = T.arange( start=1, end=self.n_quantiles+1, dtype=T.float32, device=self.policy_net.device )
-        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_quantiles )
+        
+        ## We need to get the tau samples used in the policy network (formatted in the right way)        
+        taus = self.policy_net.taus.repeat( 1, self.n_quantiles ).view( self.batch_size, self.n_quantiles, -1 )
+        taus.transpose_(1,2)
         
         ## To create the difference tensor for each sample in batch various unsqueezes are needed        
-        dist_diff = target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
-        
+        dist_diff = td_target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
+
         ## We then find the loss function using the QR equation
-        QRloss = self.huber(dist_diff) * (tau - (dist_diff.detach()<0).float()).abs()
+        QRloss = self.huber(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
         
         ## We then need to find the mean along the batch dimension, so we get the loss for each sample
         QRloss = QRloss.sum(dim=-1).mean(dim=-1)
@@ -276,9 +312,8 @@ class Agent(object):
         if self.PER_on:
             new_errors = QRloss.detach().cpu().numpy().squeeze()
             self.memory.batch_update(indices, new_errors)
-            error = new_errors.mean()
 
-        ## Now we use gradient descent using the prioritised importance sampling weights
+        ## Now we use the loss for graidient desc, applying is weights if using PER
         loss = QRloss
         if self.PER_on:
             loss = loss * is_weights
@@ -288,7 +323,7 @@ class Agent(object):
 
         self.learn_step_counter += 1
 
-        return loss.item(), error
+        return loss.item()
 
 
 

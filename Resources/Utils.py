@@ -55,29 +55,22 @@ class dist_plot(object):
         self.fig.canvas.flush_events()
         
 
-class quart_plot(object):
+class quant_plot(object):
     def __init__(self, vmin, vmax):
 
         self.fig = plt.figure( figsize = (5,5) )
         self.ax  = self.fig.add_subplot(111)
 
-        self.ax.set_ylim([0, 0.6])
+        self.ax.set_ylim([0, 1])
         self.ax.set_xlim([vmin, vmax])
 
         self.dist_line, = self.ax.plot( [], "kx" )
 
-    def update(self, quarts):
+    def update(self, quants):
 
-        # boundaries = ( quarts[1:] + quarts[:-1] ) / 2
-        # first = 2 * quarts[0] - boundaries[0] 
-        # last  = 2 * quarts[-1] - boundaries[-1] 
-        # boundaries = np.concatenate( ( [first], boundaries, [last] ) ) 
-        # distance = boundaries[1:] - boundaries[:-1]
-        # heights = 1.0 / ( distance * len(quarts) )
-
-        heights = np.ones( len(quarts) ) / 2
+        heights = np.ones( len(quants) ) / 2
         
-        self.dist_line.set_data( quarts, heights )
+        self.dist_line.set_data( quants, heights )
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
