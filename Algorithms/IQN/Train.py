@@ -36,7 +36,7 @@ def main():
                     name    = "car_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 5e-5,
                     \
                     input_dims = [28], n_actions = 12,
                     depth = 3, width = 256, 
@@ -46,7 +46,7 @@ def main():
                     eps_min = 0.01,
                     eps_dec = 5e-5,
                     \
-                    mem_size    = 500000, batch_size = 64,
+                    mem_size    = 1000000, batch_size = 64,
                     target_sync = 1e-3,   freeze_up  = 2000,
                     \
                     PER_on    = True, n_step   = 3,

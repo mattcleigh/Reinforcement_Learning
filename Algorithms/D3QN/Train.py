@@ -26,28 +26,28 @@ def main():
     interval = 10
     best_score = 2000
     
-    env = Car_Env.MainEnv()
-    # env = gym.make("CartPole-v1")
+    # env = Car_Env.MainEnv()
+    env = gym.make("LunarLander-v2")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
     
     agent = Agent( 
-                    name    = "car_AI_D3DQN",
+                    name    = "lander_AI_D3DQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-5,
+                    gamma = 0.99, lr = 5e-4,
                     \
-                    input_dims = [28], n_actions = 12,
-                    depth = 3, width = 128, 
+                    input_dims = [8], n_actions = 4,
+                    depth = 2, width = 128, 
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
                     eps_min = 0.01,
                     eps_dec = 5e-5,
                     \
-                    mem_size    = 500000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 10000,
+                    mem_size    = 100000, batch_size = 64,
+                    target_sync = 100,    freeze_up  = 10000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
