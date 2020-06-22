@@ -67,21 +67,15 @@ class quart_plot(object):
         self.dist_line, = self.ax.plot( [], "kx" )
 
     def update(self, quarts):
-        
-        ## We find the boundaries between then quartiles
-        boundaries = ( quarts[1:] + quarts[:-1] ) / 2
-        
-        ## We insert the first and the final boundary
-        first = 2 * quarts[0] - boundaries[0] 
-        last  = 2 * quarts[-1] - boundaries[-1] 
-        boundaries = np.concatenate( ( [first], boundaries, [last] ) ) 
-        
-        ## Now we find the distance between each boundary
-        distance = boundaries[1:] - boundaries[:-1]
-        
-        ## Now we calculate the heights
-        heights = 1.0 / ( distance * len(quarts) )
-        # heights = np.ones( len(quarts) )
+
+        # boundaries = ( quarts[1:] + quarts[:-1] ) / 2
+        # first = 2 * quarts[0] - boundaries[0] 
+        # last  = 2 * quarts[-1] - boundaries[-1] 
+        # boundaries = np.concatenate( ( [first], boundaries, [last] ) ) 
+        # distance = boundaries[1:] - boundaries[:-1]
+        # heights = 1.0 / ( distance * len(quarts) )
+
+        heights = np.ones( len(quarts) ) / 2
         
         self.dist_line.set_data( quarts, heights )
         self.fig.canvas.draw()

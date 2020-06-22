@@ -21,8 +21,8 @@ def main():
     load_checkpoint = False
     
     render_on = False
-    draw_return = False
-    interval = 1
+    draw_return = True
+    interval = 10
     best_score = 1500
     
     # env = Car_Env.MainEnv()
@@ -32,7 +32,7 @@ def main():
     # exit()
     
     agent = Agent( 
-                    name    = "cartpole_AI",
+                    name    = "cartpole_cos_AI",
                     net_dir = "Saved_Binaries",
                     \
                     gamma = 0.99, lr = 1e-3,
@@ -46,14 +46,14 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 100,    freeze_up   = 1000,
+                    target_sync = 100,    freeze_up  = 1000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax = 1,
                     \
-                    n_quartiles = 51
+                    n_quantiles = 32
                     )
     
     if load_checkpoint:
@@ -64,7 +64,7 @@ def main():
     sp = score_plot("IQN")
     
     if draw_return:
-        qp = quart_plot(-1, 25)
+        qp = quart_plot(0, 100)
 
     all_time = 0
     for ep in count():

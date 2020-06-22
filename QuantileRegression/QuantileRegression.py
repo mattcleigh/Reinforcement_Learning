@@ -26,7 +26,7 @@ class QRDuelMLP(nn.Module):
                        input_dims, n_outputs,
                        depth, width, activ,
                        noisy, 
-                       n_quartiles ):
+                       n_quantiles ):
         super(QRDuelMLP, self).__init__()
 
         ## Defining the network features
@@ -37,7 +37,7 @@ class QRDuelMLP(nn.Module):
         self.n_outputs  = n_outputs
 
         ## The QR distributional RL parameters
-        self.n_quartiles = n_quartiles
+        self.n_quantiles = n_quantiles
         
         # Checking if noisy layers will be used
         if noisy:
@@ -57,12 +57,12 @@ class QRDuelMLP(nn.Module):
         self.V_stream = nn.Sequential(OrderedDict([
             ( "V_lin_1",   linear_layer(width, width//2) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, n_quartiles) ),
+            ( "V_lin_out", linear_layer(width//2, n_quantiles) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width//2) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_outputs*n_quartiles) ),
+            ( "A_lin_out", linear_layer(width//2, n_outputs*n_quantiles) ),
         ]))
 
         ## Moving the network to the device
@@ -74,11 +74,11 @@ class QRDuelMLP(nn.Module):
         ## This is a network for the QR algorithm
         ## So the output is a matrix AxN
             ## Each row is an action
-            ## Each column is the location of a Q dist quartile
+            ## Each column is the location of a Q dist quantile
 
         shared_out = self.base_stream(state)
-        V = self.V_stream(shared_out).view(-1, 1, self.n_quartiles)
-        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_quartiles)
+        V = self.V_stream(shared_out).view(-1, 1, self.n_quantiles)
+        A = self.A_stream(shared_out).view(-1, self.n_outputs, self.n_quantiles)
         Q = V + A - A.mean( dim=1, keepdim=True)
 
         return Q
@@ -115,7 +115,7 @@ class Agent(object):
                  PERbeta,     PERb_inc,
                  PERmax,
                  \
-                 n_quartiles,
+                 n_quantiles,
                  ):
         
         ## Setting all class variables
@@ -126,10 +126,10 @@ class Agent(object):
         ## The policy and target networks
         self.policy_net = QRDuelMLP( self.name + "_policy_network", net_dir,
                                      input_dims, n_actions, depth, width, activ,
-                                     noisy, n_quartiles )
+                                     noisy, n_quantiles )
         self.target_net = QRDuelMLP( self.name + "_target_network", net_dir,
                                      input_dims, n_actions, depth, width, activ,
-                                     noisy, n_quartiles )
+                                     noisy, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
         ## The gradient descent algorithm used to train the policy network
@@ -163,12 +163,12 @@ class Agent(object):
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_dist = np.zeros( self.n_quartiles )
+            act_dist = np.zeros( self.n_quantiles )
         
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_dist = np.zeros( self.n_quartiles )
+                act_dist = np.zeros( self.n_quantiles )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
             
         ## Then act purely greedily
@@ -260,8 +260,8 @@ class Agent(object):
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
 
-        tau = T.arange( start=1, end=self.n_quartiles+1, dtype=T.float32, device=self.policy_net.device )
-        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_quartiles )
+        tau = T.arange( start=1, end=self.n_quantiles+1, dtype=T.float32, device=self.policy_net.device )
+        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_quantiles )
         
         ## To create the difference tensor for each sample in batch various unsqueezes are needed        
         dist_diff = target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)

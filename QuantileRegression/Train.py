@@ -11,7 +11,7 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
-from QuartileRegression import Agent
+from QuantileRegression import Agent
 from RLResources.Utils import score_plot
 from RLResources.Utils import quart_plot
 
@@ -21,8 +21,8 @@ def main():
     load_checkpoint = False
     
     render_on = False
-    draw_return = False
-    interval = 1
+    draw_return = True
+    interval = 10
     best_score = 1500
     
     # env = Car_Env.MainEnv()
@@ -53,7 +53,7 @@ def main():
                     PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax = 1,
                     \
-                    n_quartiles = 51
+                    n_quantiles = 51
                     )
     
     if load_checkpoint:
@@ -64,7 +64,7 @@ def main():
     sp = score_plot("QRRB")
     
     if draw_return:
-        qp = quart_plot(-1, 25)
+        qp = quart_plot(0, 100)
 
     all_time = 0
     for ep in count():

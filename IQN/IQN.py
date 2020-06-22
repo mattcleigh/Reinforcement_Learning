@@ -25,7 +25,7 @@ class IQNDuelMLP(nn.Module):
                        input_dims, n_actions,
                        depth, width, activ,
                        noisy, 
-                       n_quartiles ):
+                       n_quantiles ):
         super(IQNDuelMLP, self).__init__()
 
         ## Defining the network features
@@ -36,7 +36,9 @@ class IQNDuelMLP(nn.Module):
         self.n_actions  = n_actions
 
         ## The IQN distributional RL parameters
-        self.n_quartiles = n_quartiles
+        self.n_quantiles = n_quantiles
+        self.quant_emb_dim = 64
+        self.taus = None
         
         # Checking if noisy layers will be used
         if True:
@@ -52,13 +54,11 @@ class IQNDuelMLP(nn.Module):
             layers.append(( "base_act_{}".format(l_num), activ ))
         self.base_stream = nn.Sequential(OrderedDict(layers))
         
-        ## Defining the tau embedding stream (we will use mlp, not the cos thing)
-        layers = []
-        for l_num in range(1, 3+1):
-            inpt = 1 if l_num == 1 else width
-            layers.append(( "em_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "em_act_{}".format(l_num), activ ))
-        self.embed_stream = nn.Sequential(OrderedDict(layers))
+        ## Defining the tau embedding stream, only one linear layer
+        self.embed_stream = nn.Sequential(OrderedDict([
+            ( "em_lin_1",   nn.Linear(self.quant_emb_dim, width) ),
+            ( "em_act_1",   activ ),
+        ]))
         
         ## Defining the final stream dueling network arcitecture
         self.V_stream = nn.Sequential(OrderedDict([
@@ -77,34 +77,38 @@ class IQNDuelMLP(nn.Module):
         self.to(self.device)
 
     def forward(self, state):
-
+        
         ## We record the batch size as it will determine the amount of random samples to generate
         batch_size = state.size(0)
-        n_taus = batch_size * self.n_quartiles
+        n_taus = batch_size * self.n_quantiles
         
         ## We pass the state through the base layer
         base_out = self.base_stream(state)
         
         ## We have to pass through each sample k many times, so lets just repeat the same output
-        rpt_base_out = T.repeat_interleave( base_out, self.n_quartiles, dim=0 )
+        rpt_base_out = T.repeat_interleave( base_out, self.n_quantiles, dim=0 )
 
         ## We now apply the prebuilt embedding layer
-        ## First we need to generate the tau samples
-        taus = T.rand( (n_taus,1), dtype=T.float32, device=self.device )
+        ## First we need to generate the tau samples and keep them! They will be used for regression!
+        self.taus = T.rand( (n_taus,1), dtype=T.float32, device=self.device )
         
-        ## The taus are then passed through the embedding stream
-        emb_out = self.embed_stream(taus)
+        ## We fist apply the cosine layer
+        Is = T.arange(1, self.quant_emb_dim+1, dtype=T.float32, device=self.device )
+        emb_in = T.cos( Is * np.pi * self.taus ) 
+
+        ## Then we apply the embedding linear layer
+        emb_out = self.embed_stream(emb_in)
 
         ## We then combine the streams together using the hadamard product
         merged = rpt_base_out*emb_out
 
         ## Now we feed the merged layer through the duelling stream
-        ## Breaking up each sample into batch x k x val/actions
-        V = self.V_stream(merged).view(batch_size, self.n_quartiles, -1)
-        A = self.A_stream(merged).view(batch_size, self.n_quartiles, self.n_actions)
+        ## Breaking up each sample into batch, k, val/actions
+        V = self.V_stream(merged).view(batch_size, self.n_quantiles, -1)
+        A = self.A_stream(merged).view(batch_size, self.n_quantiles, self.n_actions)
         
-        ## We now transpose the last two dims to be the same as the other algs
-        ## batch x actions x k
+        ## We now transpose the last two dims to be the same as the other algorithms (QR and C51)
+        ## batch, actions, k
         V = V.transpose( -1, -2 )
         A = A.transpose( -1, -2 )
         
@@ -147,7 +151,7 @@ class Agent(object):
                  PERbeta,     PERb_inc,
                  PERmax,
                  \
-                 n_quartiles,
+                 n_quantiles,
                  ):
         
         ## Setting all class variables
@@ -158,10 +162,10 @@ class Agent(object):
         ## The policy and target networks
         self.policy_net = IQNDuelMLP( self.name + "_policy_network", net_dir,
                                       input_dims, n_actions, depth, width, activ,
-                                      noisy, n_quartiles )
+                                      noisy, n_quantiles )
         self.target_net = IQNDuelMLP( self.name + "_target_network", net_dir,
                                       input_dims, n_actions, depth, width, activ,
-                                      noisy, n_quartiles )
+                                      noisy, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
         ## The gradient descent algorithm used to train the policy network
@@ -195,12 +199,12 @@ class Agent(object):
         ## Act completly randomly for the first x frames
         if self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_dist = np.zeros( self.n_quartiles )
+            act_dist = np.zeros( self.n_quantiles )
         
         ## If there are no noisy layers then we must do e-greedy
         elif not self.noisy and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_dist = np.zeros( self.n_quartiles )
+                act_dist = np.zeros( self.n_quantiles )
                 self.eps = max( self.eps - self.eps_dec, self.eps_min )
             
         ## Then act purely greedily
@@ -291,15 +295,16 @@ class Agent(object):
             
         ## Now we want to track gradients using the policy network
         pol_dist = self.policy_net(states)[batch_idxes, actions]
-
-        tau = T.arange( start=1, end=self.n_quartiles+1, dtype=T.float32, device=self.policy_net.device )
-        tau = ( 2 * ( tau - 1 ) + 1 ) / ( 2 * self.n_quartiles )
+        
+        ## We need to get the tau samples used in the policy network (formatted in the right way)        
+        taus = self.policy_net.taus.repeat( 1, self.n_quantiles ).view( self.batch_size, self.n_quantiles, -1 )
+        taus.transpose_(1,2)
         
         ## To create the difference tensor for each sample in batch various unsqueezes are needed        
         dist_diff = target_dist.unsqueeze(-1) - pol_dist.unsqueeze(-1).transpose(1,2)
-        
+
         ## We then find the loss function using the QR equation
-        QRloss = self.huber(dist_diff) * (tau - (dist_diff.detach()<0).float()).abs()
+        QRloss = self.huber(dist_diff) * (taus - (dist_diff.detach()<0).float()).abs()
         
         ## We then need to find the mean along the batch dimension, so we get the loss for each sample
         QRloss = QRloss.sum(dim=-1).mean(dim=-1)
