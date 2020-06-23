@@ -18,36 +18,36 @@ from Resources.Utils import quant_plot
 
 def main():
 
-    test_mode = False
-    load_checkpoint = False
+    test_mode = True
+    load_checkpoint = True
 
-    render_on = False
+    render_on = True
     draw_return = False
     interval = 10
     best_score = 1500
 
-    env = Car_Env.MainEnv( rand_start = True )
-    # env = gym.make("CartPole-v0")
+    # env = Car_Env.MainEnv( rand_start = True )
+    env = gym.make("LunarLander-v2")
     # print( env.reset() )
     # print( env.action_space )
     # exit()
 
     agent = Agent(
-                    name    = "car_AI_IQN",
+                    name    = "lander_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 5e-5,
+                    gamma = 0.99, lr = 1e-4,
                     \
-                    input_dims = [28], n_actions = 12,
-                    depth = 3, width = 256,
+                    input_dims = [8], n_actions = 4,
+                    depth = 2, width = 256,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
                     eps_min = 0.01,
                     eps_dec = 5e-5,
                     \
-                    mem_size    = 1000000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 2000,
+                    mem_size    = 10, batch_size = 64,
+                    target_sync = 1e-3,    freeze_up  = 0000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
