@@ -14,12 +14,17 @@ import pyglet
 from pyglet.gl import *
 from pyglet.window import key
 
+class Discrete:
+    def __init__(self, size):
+        self.n = size
+
 class MainEnv:
     """ The environment of the race track
     """
     def __init__(self, rand_start = False ):
         self.viewer = None
         self.rand_start = rand_start
+        self.action_space = Discrete(12)
 
         ## The constants defining physics of the model
         self.time       = 0
@@ -79,7 +84,6 @@ class MainEnv:
 
         self.set_up_track()
         self.reset()
-
 
     @property
     def state(self):

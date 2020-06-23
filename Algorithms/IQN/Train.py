@@ -18,36 +18,43 @@ from Resources.Utils import quant_plot
 
 def main():
 
-    test_mode = True
-    load_checkpoint = True
+    test_mode = False
+    load_checkpoint = False
 
     render_on = True
     draw_return = False
     interval = 10
     best_score = 1500
 
-    # env = Car_Env.MainEnv( rand_start = True )
-    env = gym.make("LunarLander-v2")
-    # print( env.reset() )
-    # print( env.action_space )
+    # env = Car_Env.MainEnv( rand_start = False )
+    env = gym.make("Pong-ram-v0")
+
+    ## We get the action and input shape from the environments themselves
+    inp_space = list( env.reset().shape )
+    act_space = env.action_space.n
+    print(act_space)
+
+    # print( env.unwrapped.get_action_meanings() )
+    # print(inp_space)
+    # print(act_space)
     # exit()
 
     agent = Agent(
-                    name    = "lander_AI_IQN",
+                    name    = "pong_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 5e-5,
                     \
-                    input_dims = [8], n_actions = 4,
-                    depth = 2, width = 256,
+                    input_dims = inp_space, n_actions = act_space,
+                    depth = 3, width = 256,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
                     eps_min = 0.01,
                     eps_dec = 5e-5,
                     \
-                    mem_size    = 10, batch_size = 64,
-                    target_sync = 1e-3,    freeze_up  = 0000,
+                    mem_size    = 1000000, batch_size = 64,
+                    target_sync = 1e-3,    freeze_up = 32000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
@@ -71,6 +78,7 @@ def main():
     for ep in count():
 
         state = env.reset()
+        state = np.array(state) / 255 - 0.5
         ep_score = 0.0
         ep_loss  = 0.0
 
@@ -80,6 +88,7 @@ def main():
 
             action, dist = agent.choose_action(state)
             next_state, reward, done, info = env.step(action)
+            next_state = np.array(next_state) / 255 - 0.5
             eps = agent.eps
 
             if not test_mode:

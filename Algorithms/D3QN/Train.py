@@ -21,15 +21,21 @@ def main():
     test_mode = False
     load_checkpoint = False
 
-    render_on = False
+    render_on = True
     draw_return = False
     interval = 10
-    best_score = 2000
+    best_score = 1500
 
-    # env = Car_Env.MainEnv()
-    env = gym.make("LunarLander-v2")
-    # print( env.reset() )
-    # print( env.action_space )
+    # env = Car_Env.MainEnv( rand_start = False )
+    env = gym.make("Pong-ram-v0")
+
+    ## We get the action and input shape from the environments themselves
+    inp_space = list( env.reset().shape )
+    act_space = env.action_space.n
+
+    # print( env.unwrapped.get_action_meanings() )
+    # print(input_space)
+    # print(n_actions)
     # exit()
 
     agent = Agent(
@@ -38,7 +44,7 @@ def main():
                     \
                     gamma = 0.99, lr = 5e-4,
                     \
-                    input_dims = [8], n_actions = 4,
+                    input_dims = inp_space, n_actions = act_space,
                     depth = 2, width = 128,
                     activ = nn.PReLU(), noisy = True,
                     \
