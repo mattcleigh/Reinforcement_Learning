@@ -11,8 +11,8 @@ from itertools import count
 import torch as T
 import torch.nn as nn
 
-from Environments import Car_Env
 from D3QN import Agent
+from Environments import Car_Env
 from Resources.Utils import score_plot
 from Resources.Utils import value_plot
 

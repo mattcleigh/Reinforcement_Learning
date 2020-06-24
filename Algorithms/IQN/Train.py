@@ -32,7 +32,6 @@ def main():
     ## We get the action and input shape from the environments themselves
     inp_space = list( env.reset().shape )
     act_space = env.action_space.n
-    print(act_space)
 
     # print( env.unwrapped.get_action_meanings() )
     # print(inp_space)
@@ -43,10 +42,10 @@ def main():
                     name    = "pong_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 5e-5,
+                    gamma = 0.99, lr = 1e-5,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 256,
+                    depth = 3, width = 512,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,

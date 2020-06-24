@@ -62,14 +62,14 @@ class IQNDuelMLP(nn.Module):
 
         ## Defining the dueling network arcitecture
         self.V_stream = nn.Sequential(OrderedDict([
-            ( "V_lin_1",   linear_layer(width, width//2) ),
+            ( "V_lin_1",   linear_layer(width, width) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, 1) ),
+            ( "V_lin_out", linear_layer(width, 1) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
-            ( "A_lin_1",   linear_layer(width, width//2) ),
+            ( "A_lin_1",   linear_layer(width, width) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_actions) ),
+            ( "A_lin_out", linear_layer(width, n_actions) ),
         ]))
 
         ## Moving the network to the device

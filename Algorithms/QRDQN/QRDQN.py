@@ -55,14 +55,14 @@ class QRDuelMLP(nn.Module):
 
         ## Defining the dueling network arcitecture
         self.V_stream = nn.Sequential(OrderedDict([
-            ( "V_lin_1",   linear_layer(width, width//2) ),
+            ( "V_lin_1",   linear_layer(width, width) ),
             ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width//2, n_quantiles) ),
+            ( "V_lin_out", linear_layer(width, n_quantiles) ),
         ]))
         self.A_stream = nn.Sequential(OrderedDict([
-            ( "A_lin_1",   linear_layer(width, width//2) ),
+            ( "A_lin_1",   linear_layer(width, width) ),
             ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width//2, n_actions*n_quantiles) ),
+            ( "A_lin_out", linear_layer(width, n_actions*n_quantiles) ),
         ]))
 
         ## Moving the network to the device
