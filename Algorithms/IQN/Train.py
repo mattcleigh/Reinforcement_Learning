@@ -27,7 +27,7 @@ def main():
     best_score = 1500
 
     # env = Car_Env.MainEnv( rand_start = False )
-    env = gym.make("Pong-ram-v0")
+    env = gym.make("MsPacman-ram-v0")
 
     ## We get the action and input shape from the environments themselves
     inp_space = list( env.reset().shape )
@@ -39,10 +39,10 @@ def main():
     # exit()
 
     agent = Agent(
-                    name    = "pong_AI_IQN",
+                    name    = "pacman_AI_IQN",
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-5,
+                    gamma = 0.99, lr = 1e-4,
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 512,
@@ -64,7 +64,7 @@ def main():
                     )
 
     if load_checkpoint:
-        agent.load_models("_best")
+        agent.load_models()
 
     ## For plotting as it learns
     plt.ion()
@@ -87,8 +87,11 @@ def main():
 
             action, dist = agent.choose_action(state)
             next_state, reward, done, info = env.step(action)
-            next_state = np.array(next_state) / 255 - 0.5
             eps = agent.eps
+
+            ## Extra stuff for the Atari ram module
+            next_state = np.array(next_state) / 255 - 0.5
+            reward = np.clip( reward, -1.0, 1.0 )
 
             if not test_mode:
                 agent.store_transition( state, action, reward, next_state, done )
