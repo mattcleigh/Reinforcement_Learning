@@ -27,7 +27,7 @@ def main():
     best_score = 1500
 
     # env = Car_Env.MainEnv( rand_start = False )
-    env = gym.make("Pong-ram-v0")
+    env = gym.make("CartPole-v1")
 
     ## We get the action and input shape from the environments themselves
     inp_space = list( env.reset().shape )
@@ -53,7 +53,7 @@ def main():
                     eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
-                    target_sync = 100,    freeze_up  = 10000,
+                    target_sync = 100,    freeze_up  = 5000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,

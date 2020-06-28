@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
+home_env = '../../../Reinforcement_Learning/'
+sys.path.append(home_env)
 
 from Resources import Layers as ll
 from Resources import MemoryMethods as MM

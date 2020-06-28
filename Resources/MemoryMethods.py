@@ -1,6 +1,41 @@
 import numpy as np
 from collections import deque
 
+class SmallMemory:
+    """ This is similar to the DQN experience replay and
+        exists to decorrelate updates. There are N workers,
+        and each are allowed to expereience F frames. So the memory
+        holds NxF transitions for the update.
+        All transitions are pulled each call and all are replaced before the next.
+    """
+
+    def __init__(self, capacity, state_input_shape):
+
+        ## Descriptions of the memory
+        self.capacity  = capacity
+
+        ## The actual memory arrays which will hold the data
+        self.states      = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
+        self.next_states = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
+        self.rewards     = np.zeros(  capacity, dtype=np.int64   )
+        self.actions     = np.zeros(  capacity, dtype=np.float32 )
+        self.dones       = np.zeros(  capacity, dtype=np.bool    )
+
+    def reset(self):
+        self.mem_cntr = 0
+
+    def store_transition(self, state, action, reward, next_state, done):
+
+        ## We store the transition information in its respective arrays
+        self.states[self.mem_cntr]      = state
+        self.actions[self.mem_cntr]     = action
+        self.rewards[self.mem_cntr]     = reward
+        self.next_states[self.mem_cntr] = next_state
+        self.dones[self.mem_cntr]       = done
+        self.mem_cntr += 1
+
+
+
 class SumTree(object):
     """ A binary tree object where each node contains the sum
         of it's children. Each leaf node will contain the

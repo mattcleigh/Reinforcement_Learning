@@ -16,8 +16,8 @@ class score_plot(object):
         self.ax  = self.fig.add_subplot(111)
         self.fig.suptitle(title)
 
-        self.all_scores = deque(maxlen=10000)
-        self.avg_scores = deque(maxlen=10000)
+        self.all_scores = deque(maxlen=5000)
+        self.avg_scores = deque(maxlen=5000)
 
         self.score_line, = self.ax.plot( self.all_scores, "r." )
         self.avgs_line,  = self.ax.plot( self.avg_scores, "-k" )
