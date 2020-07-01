@@ -15,23 +15,22 @@ class SmallMemory:
         self.capacity  = capacity
 
         ## The actual memory arrays which will hold the data
-        self.states      = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
-        self.next_states = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
-        self.rewards     = np.zeros(  capacity, dtype=np.int64   )
-        self.actions     = np.zeros(  capacity, dtype=np.float32 )
-        self.dones       = np.zeros(  capacity, dtype=np.bool    )
+        self.states  = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
+        self.actions = np.zeros(  capacity, dtype=np.int64 )
+        self.values  = np.zeros(  capacity, dtype=np.float32 )
 
     def reset(self):
         self.mem_cntr = 0
+        self.states.fill(0)
+        self.actions.fill(0)
+        self.values.fill(0)
 
-    def store_transition(self, state, action, reward, next_state, done):
+    def store_transition(self, state, action, value):
 
         ## We store the transition information in its respective arrays
-        self.states[self.mem_cntr]      = state
-        self.actions[self.mem_cntr]     = action
-        self.rewards[self.mem_cntr]     = reward
-        self.next_states[self.mem_cntr] = next_state
-        self.dones[self.mem_cntr]       = done
+        self.states[self.mem_cntr]  = state
+        self.actions[self.mem_cntr] = action
+        self.values[self.mem_cntr]  = value
         self.mem_cntr += 1
 
 
