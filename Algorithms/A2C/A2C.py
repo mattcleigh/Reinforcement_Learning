@@ -173,6 +173,7 @@ class Agent(object):
 
         ## The gradient descent algorithm and loss function used to train the policy network
         self.optimiser = optim.Adam( self.actor_critic.parameters(), lr = lr )
+        self.loss_fn = nn.SmoothL1Loss()
 
         ## We create the memory to hold the update for each batch
         self.memory = mm.SmallMemory( n_workers*n_frames, input_dims )
@@ -230,7 +231,7 @@ class Agent(object):
 
         ## We use the td_error as an estimator of the advantage value and the critic loss
         td_errors   = values - state_values
-        critic_loss = td_errors.pow(2).mean()
+        critic_loss = self.loss_fn(state_values_old, values)
 
         ## Now we move onto the actor/policy loss
         ## We start with the distribution over the actions taken

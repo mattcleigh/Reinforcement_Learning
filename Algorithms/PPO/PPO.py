@@ -110,12 +110,16 @@ class ActorCriticMLP(nn.Module):
 
         ## Defining the actor network, returns the policy (softmax)
         self.actor_stream = nn.Sequential(OrderedDict([
+            ( "actor_lin_1",   nn.Linear(width, width) ),
+            ( "actor_act_1",   activ ),
             ( "actor_lin_out", nn.Linear(width, n_actions) ),
             ( "actor_act_out", nn.Softmax(dim=-1) ),
         ]))
 
         ## Defining the critic network, returns the state value function
         self.critic_stream = nn.Sequential(OrderedDict([
+            ( "critic_lin_1",   nn.Linear(width, width) ),
+            ( "critic_act_1",   activ ),
             ( "critic_lin_out", nn.Linear(width, 1) ),
         ]))
 
@@ -180,6 +184,7 @@ class Agent(object):
 
         ## The gradient descent algorithm and loss function used to train the policy network
         self.optimiser = optim.Adam( self.actor_critic.parameters(), lr = lr )
+        self.loss_fn = nn.SmoothL1Loss()
 
         ## We create the memory to hold the update for each batch
         self.memory = mm.SmallMemory( n_workers*n_frames, input_dims )
@@ -240,7 +245,7 @@ class Agent(object):
 
             ## We use the td_error as an estimator of the advantage value and the critic loss
             td_errors   = values - state_values_old
-            critic_loss = td_errors.pow(2).mean()
+            critic_loss = self.loss_fn(state_values_old, values)
 
             ## Now we move onto the actor/policy loss
             ## We need the to evaluate the actions taken using the new policy net
@@ -266,7 +271,7 @@ class Agent(object):
             ## We do a single update step using the sum of losses (equivalent to two steps)
             loss = actor_loss + ( self.vf_coef * critic_loss ) - ( self.ent_coef * entropy )
             loss.backward()
-            nn.utils.clip_grad_value_( self.actor_critic.parameters(), 1.0 )
+            nn.utils.clip_grad_norm_( self.actor_critic.parameters(), 0.5)
             self.optimiser.step()
 
             self.learn_step_counter += 1

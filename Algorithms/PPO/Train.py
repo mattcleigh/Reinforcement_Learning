@@ -45,13 +45,13 @@ def main():
                     gamma = 0.99, lr = 1e-5,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 64, activ = nn.PReLU(),
+                    depth = 3, width = 256, activ = nn.PReLU(),
                     \
                     eps_clip = 0.2, pol_sync = 4,
                     \
                     env_name = env_name,
-                    n_workers = 4, n_frames = 32,
-                    vf_coef = 0.1, ent_coef = 0.0001,
+                    n_workers = 8, n_frames = 32,
+                    vf_coef = 0.25, ent_coef = 0.0001,
                     )
 
     if load_checkpoint:
