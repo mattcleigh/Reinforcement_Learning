@@ -52,7 +52,7 @@ def main():
                     vf_coef = 0.1, ent_coef = 0.0001,
                     )
 
-    if load_checkpoint:
+    if load_prev:
         agent.load_models()
 
     ## Main training loop

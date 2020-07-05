@@ -23,7 +23,7 @@ def main():
     load_prev = False
     render_on = False
 
-    env_name = "CartPole-v0"
+    env_name = "LunarLander-v2"
     alg_name = "PPO"
 
     ############################################
@@ -45,16 +45,16 @@ def main():
                     gamma = 0.99, lr = 1e-3,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 64, activ = nn.PReLU(),
+                    depth = 3, width = 128, activ = nn.PReLU(),
                     \
-                    eps_clip = 0.1, pol_sync = 4,
+                    eps_clip = 0.1, pol_sync = 50,
                     \
                     env_name = env_name,
-                    n_workers = 4, n_frames = 128,
-                    vf_coef = 0.25, ent_coef = 0.0001,
+                    n_workers = 4, n_frames = 512,
+                    vf_coef = 0.25, ent_coef = 0.01,
                     )
 
-    if load_checkpoint:
+    if load_prev:
         agent.load_models()
 
     ## Main training loop

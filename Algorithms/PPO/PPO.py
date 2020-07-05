@@ -108,23 +108,23 @@ class Agent(object):
             ## We zero out the gradients, as required for each pyrotch train loop
             self.optimiser.zero_grad()
 
-            ## We start with the critic/value  loss
-            ## We need both the value and policy based on the current states
-            policy_old, state_values_old = self.actor_critic_old(states)
+            ## We start with the critic/value loss
+            ## We need both the new value and policy based on the current states
+            policy, state_values = self.actor_critic(states)
 
             ## We use the td_error as an estimator of the advantage value and the critic loss
-            td_errors   = values - state_values_old
-            critic_loss = self.loss_fn(state_values_old, values)
+            td_errors   = values - state_values
+            critic_loss = self.loss_fn(state_values, values)
 
             ## Now we move onto the actor/policy loss
-            ## We need the to evaluate the actions taken using the new policy net
-            policy, state_values = self.actor_critic(states)
+            ## We need the to evaluate the actions taken using the old policy net
+            policy_old, state_values_old = self.actor_critic_old(states)
 
             ## We need the importance sampling ratios of the actions taken
             action_dist = T.distributions.Categorical(policy)
             log_probs = action_dist.log_prob(actions).view(-1, 1)
 
-            action_dist_old = T.distributions.Categorical(policy)
+            action_dist_old = T.distributions.Categorical(policy_old)
             log_probs_old = action_dist_old.log_prob(actions).view(-1, 1)
 
             ratios = T.exp( log_probs - log_probs_old.detach() )
