@@ -11,24 +11,24 @@ from itertools import count
 import torch as T
 import torch.nn as nn
 
-from PPO import Agent
 from Environments import Car_Env
-from Resources.Utils import score_plot
+
+from PPO import Agent
 
 def main():
 
     ################ USER INPUT ################
 
     test_mode = False
-    load_checkpoint = False
-
+    load_prev = False
     render_on = False
 
-    env_name = "LunarLander-v2"
-
-    ############################################
+    env_name = "CartPole-v0"
     alg_name = "PPO"
 
+    ############################################
+
+    ## Loading the environment
     if env_name=="car":
         env = Car_Env.MainEnv( rand_start = True )
     else:
@@ -39,24 +39,25 @@ def main():
     act_space = env.action_space.n
 
     agent = Agent(
-                    name    = env_name + "_" + alg_name,
+                    name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-5,
+                    gamma = 0.99, lr = 1e-3,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 256, activ = nn.PReLU(),
+                    depth = 3, width = 64, activ = nn.PReLU(),
                     \
-                    eps_clip = 0.2, pol_sync = 4,
+                    eps_clip = 0.1, pol_sync = 4,
                     \
                     env_name = env_name,
-                    n_workers = 8, n_frames = 32,
+                    n_workers = 4, n_frames = 128,
                     vf_coef = 0.25, ent_coef = 0.0001,
                     )
 
     if load_checkpoint:
-        agent.load_model()
+        agent.load_models()
 
+    ## Main training loop
     for t in count():
 
         if render_on:

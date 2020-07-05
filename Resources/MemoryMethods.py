@@ -185,12 +185,14 @@ class PER(object):
         self.mem_cntr += 1
 
         ## We then store the max_priority into the sumtree in the corresponding location
-        self.sumtree.add( self._get_priority(self.max_priority), data_index )
+        self.sumtree.add( self._get_priority(), data_index )
 
-    def _get_priority(self, error):
-        priority = ( np.abs(error) + self.eps ) ** self.a
-        self.max_priority = max(self.max_priority, priority )
-
+    def _get_priority(self, error=None):
+        if error is None:
+            priority = self.max_priority
+        else:
+            priority = ( np.abs(error) + self.eps ) ** self.a
+            self.max_priority = max(self.max_priority, priority )
         return priority
 
     def sample_memory(self, batch_size):
@@ -301,12 +303,14 @@ class N_Step_PER(object):
         self.mem_cntr += 1
 
         ## We then store the max_priority into the sumtree in the corresponding location
-        self.sumtree.add( self._get_priority(self.max_priority), data_index )
+        self.sumtree.add( self._get_priority(), data_index )
 
-    def _get_priority(self, error):
-        priority = ( np.abs(error) + self.eps ) ** self.a
-        self.max_priority = max(self.max_priority, priority )
-
+    def _get_priority(self, error=None):
+        if error is None:
+            priority = self.max_priority
+        else:
+            priority = ( np.abs(error) + self.eps ) ** self.a
+            self.max_priority = max(self.max_priority, priority )
         return priority
 
     def _get_n_step_info(self):

@@ -2,8 +2,8 @@ import sys
 home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
-from Resources import Layers as ll
-from Resources import MemoryMethods as MM
+from Resources import Networks as myNN
+from Resources import MemoryMethods as myMM
 
 import os
 import time
@@ -37,7 +37,7 @@ class DuelMLP(nn.Module):
 
         # Checking if noisy layers will be used
         if noisy:
-            linear_layer = ll.FactNoisyLinear
+            linear_layer = myNN.FactNoisyLinear
         else:
             linear_layer = nn.Linear
 
@@ -65,24 +65,19 @@ class DuelMLP(nn.Module):
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
-
     def forward(self, state):
         ## This is a standard network for the Q evaluation
         ## So the output is a A length vector
             ## Each element is the expected return for each action
-
         shared_out = self.base_stream(state)
         V = self.V_stream(shared_out)
         A = self.A_stream(shared_out)
         Q = V + A - A.mean( dim=1, keepdim=True)
-
         return Q
-
 
     def save_checkpoint(self, flag=""):
         print("... saving network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
-
 
     def load_checkpoint(self, flag=""):
         print("... loading network checkpoint ..." )
@@ -130,20 +125,20 @@ class Agent(object):
 
         ## Priotised experience replay for multi-timestep learning
         if PER_on and n_step > 1:
-            self.memory = MM.N_Step_PER( mem_size, input_dims,
+            self.memory = myMM.N_Step_PER( mem_size, input_dims,
                                 eps=PEReps, a=PERa, beta=PERbeta,
                                 beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
 
         ## Priotised experience replay
         elif PER_on:
-            self.memory = PER( mem_size, input_dims,
+            self.memory = myMM.PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
                                beta_inc=PERb_inc, max_priority=PERmax )
 
         ## Standard experience replay
         elif n_step == 1:
-            self.memory = Experience_Replay( mem_size, input_dims )
+            self.memory = myMM.Experience_Replay( mem_size, input_dims )
 
         else:
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )

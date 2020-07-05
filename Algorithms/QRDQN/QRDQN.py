@@ -2,8 +2,8 @@ import sys
 home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
-from Resources import Layers as ll
-from Resources import MemoryMethods as MM
+from Resources import Networks as myNN
+from Resources import MemoryMethods as myMM
 
 import os
 import time
@@ -42,7 +42,7 @@ class QRDuelMLP(nn.Module):
 
         # Checking if noisy layers will be used
         if noisy:
-            linear_layer = ll.FactNoisyLinear
+            linear_layer = myNN.FactNoisyLinear
         else:
             linear_layer = nn.Linear
 
@@ -140,20 +140,20 @@ class Agent(object):
 
         ## Priotised experience replay for multi-timestep learning
         if PER_on and n_step > 1:
-            self.memory = MM.N_Step_PER( mem_size, input_dims,
+            self.memory = myMM.N_Step_PER( mem_size, input_dims,
                                 eps=PEReps, a=PERa, beta=PERbeta,
                                 beta_inc=PERb_inc, max_priority=PERmax,
                                 n_step=n_step, gamma=gamma )
 
         ## Priotised experience replay
         elif PER_on:
-            self.memory = PER( mem_size, input_dims,
+            self.memory = myMM.PER( mem_size, input_dims,
                                eps=PEReps, a=PERa, beta=PERbeta,
                                beta_inc=PERb_inc, max_priority=PERmax )
 
         ## Standard experience replay
         elif n_step == 1:
-            self.memory = Experience_Replay( mem_size, input_dims )
+            self.memory = myMM.Experience_Replay( mem_size, input_dims )
 
         else:
             print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
