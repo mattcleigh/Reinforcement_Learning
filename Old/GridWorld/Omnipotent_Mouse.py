@@ -349,12 +349,12 @@ class GridWorld:
 
 def main():
 
-    my_world = GridWorld( width = 10, height = 10 , n_cats = 20,
+    my_world = GridWorld( width = 20, height = 20 , n_cats = 100,
                           lrn_rate = 0.9, expl_rate = 0.0, expl_decay = 1.0,
                           render_on = True, verbose = False, numbers = True)
 
     my_world.value_iteration()
-    my_world.lrn_rate = 0
+    # my_world.lrn_rate = 0.2
 
     my_world.td_play( max_rounds = 1000, display_on = 0, test_mode = 900, expl_start = True)
     # my_world.mc_play( max_rounds = 1000, display_on = 0, test_mode = 900, expl_start = True)
@@ -364,31 +364,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
