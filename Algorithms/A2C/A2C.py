@@ -53,12 +53,12 @@ class Agent(object):
         self.memory = myMM.SmallMemory( n_workers*n_frames, input_dims )
         self.memory.reset()
 
-        ## We now initiate the list of workers
-        self.workers = [ myUT.Worker(self, env_name, n_frames, gamma) for _ in range(n_workers) ]
+        ## We now initiate the vectorised worker environment
+        self.vec_workers = myUT.Vectorised_Worker(self, n_workers, env_name, n_frames, gamma)
 
         ## We also initiate the graph, which is an agent attribute as it is called by all workers
         plt.ion()
-        self.sp = myPT.score_plot("A2C")
+        self.sp = myPT.score_plot(self.name)
 
     def save_models(self, flag=""):
         self.actor_critic.save_checkpoint(flag)
@@ -70,34 +70,33 @@ class Agent(object):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, value)
 
-    def choose_action(self, state):
+    def vector_step(self, render_on):
+        return self.vec_workers.fill_batch(render_on)
 
-        ## First we convert the state observation into a tensor
-        state_tensor = T.tensor( [state], device=self.actor_critic.device, dtype=T.float32 )
+    def vector_choose_action(self, states):
 
-        ## We then calculate the probabilities of taking each action
-        policy = self.actor_critic.get_policy( state_tensor )
+        with T.no_grad():
+            ## First we convert the many states into a tensor
+            state_tensor = T.tensor( states, device=self.actor_critic.device, dtype=T.float32 )
 
-        ## To sample an action using these probabilities we use the distributions package
-        action_dist   = T.distributions.Categorical(policy)
-        chosen_action = action_dist.sample()
+            ## We then calculate the probabilities of taking each action
+            policy = self.actor_critic.get_policy( state_tensor )
 
-        return chosen_action.item()
+            ## We then sample the policies to get the action taken in each env
+            action_dists   = T.distributions.Categorical(policy)
+            chosen_actions = action_dists.sample()
 
-    def train(self):
+            return chosen_actions.cpu().detach().numpy()
+
+    def train(self, states, actions, values):
+
+        ## We get the new batch and convert to tensors
+        states  = T.tensor(states, dtype=T.float32, device=self.actor_critic.device)
+        actions = T.tensor(actions, dtype=T.int64, device=self.actor_critic.device)
+        values  = T.tensor(values, dtype=T.float32, device=self.actor_critic.device).reshape(-1,1)
 
         ## We zero out the gradients, as required for each pyrotch train loop
         self.optimiser.zero_grad()
-
-        ## First we have each worker fill up its portion of the batch
-        self.memory.reset()
-        for worker in self.workers:
-            worker.fill_batch()
-
-        ## We need to convert all of these arrays to pytorch tensors
-        states  = T.tensor(self.memory.states).to(self.actor_critic.device)
-        actions = T.tensor(self.memory.actions).to(self.actor_critic.device)
-        values  = T.tensor(self.memory.values).to(self.actor_critic.device).reshape(-1,1)
 
         ## We start by calculating the critic/value loss
         ## We need both the value and policy based on the current states

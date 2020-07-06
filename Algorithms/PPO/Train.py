@@ -12,6 +12,7 @@ import torch as T
 import torch.nn as nn
 
 from Environments import Car_Env
+from Resources import Utils as myUT
 
 from PPO import Agent
 
@@ -20,8 +21,10 @@ def main():
     ################ USER INPUT ################
 
     test_mode = False
-    load_prev = False
-    render_on = False
+    load_prev = True
+    render_on = True
+
+    save_every = 10
 
     env_name = "LunarLander-v2"
     alg_name = "PPO"
@@ -42,36 +45,22 @@ def main():
                     name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-3,
+                    gamma = 0.99, lr = 1e-4,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 128, activ = nn.PReLU(),
+                    depth = 3, width = 64, activ = nn.PReLU(),
                     \
-                    eps_clip = 0.1, pol_sync = 50,
+                    eps_clip = 0.2, pol_sync = 30,
                     \
                     env_name = env_name,
-                    n_workers = 4, n_frames = 512,
-                    vf_coef = 0.25, ent_coef = 0.01,
+                    n_workers = 16, n_frames = 256,
+                    vf_coef = 0.1, ent_coef = 0.01,
                     )
 
     if load_prev:
         agent.load_models()
 
-    ## Main training loop
-    for t in count():
-
-        if render_on:
-            agent.workers[0].env.render()
-
-        loss = agent.train()
-
-        if not test_mode:
-            if t>=500 and t%500==0:
-                agent.save_models()
-
-        print( "Iteration = {}, Loss = {:4.3f}        \r".format( t, loss ), end="" )
-        sys.stdout.flush()
-
+    myUT.train_ac_model(agent, env, render_on, test_mode, save_every)
 
 if __name__ == '__main__':
     main()

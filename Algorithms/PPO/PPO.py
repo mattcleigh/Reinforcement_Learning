@@ -46,7 +46,7 @@ class Agent(object):
         self.actor_critic = myNN.ActorCriticMLP( self.name + "_ac_networks", net_dir,
                                                  input_dims, n_actions,
                                                  depth, width, activ )
-        self.actor_critic_old = myNN.ActorCriticMLP( self.name + "_ac_networks", net_dir,
+        self.actor_critic_old = myNN.ActorCriticMLP( self.name + "_ac_old_networks", net_dir,
                                                      input_dims, n_actions,
                                                      depth, width, activ )
         self.actor_critic_old.load_state_dict(self.actor_critic.state_dict())
@@ -55,16 +55,12 @@ class Agent(object):
         self.optimiser = optim.Adam( self.actor_critic.parameters(), lr = lr )
         self.loss_fn = nn.SmoothL1Loss()
 
-        ## We create the memory to hold the update for each batch
-        self.memory = myMM.SmallMemory( n_workers*n_frames, input_dims )
-        self.memory.reset()
-
-        ## We now initiate the list of workers
-        self.workers = [ myUT.Worker(self, env_name, n_frames, gamma) for _ in range(n_workers) ]
+        ## We now initiate the vectorised worker environment
+        self.vec_workers = myUT.Vectorised_Worker(self, n_workers, env_name, n_frames, gamma)
 
         ## We also initiate the graph, which is an agent attribute as it is called by all workers
         plt.ion()
-        self.sp = myPT.score_plot("PPO")
+        self.sp = myPT.score_plot(self.name)
 
     def save_models(self, flag=""):
         self.actor_critic.save_checkpoint(flag)
@@ -72,36 +68,34 @@ class Agent(object):
 
     def load_models(self, flag=""):
         self.actor_critic.load_checkpoint(flag)
-        self.actor_critic_old.save_checkpoint(flag)
+        self.actor_critic_old.load_checkpoint(flag)
 
     def store_transition(self, state, action, value):
-        ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, value)
 
-    def choose_action(self, state):
-        ## First we convert the state observation into a tensor
-        state_tensor = T.tensor( [state], device=self.actor_critic.device, dtype=T.float32 )
+    def vector_step(self, render_on):
+        return self.vec_workers.fill_batch(render_on)
 
-        ## We then calculate the probabilities of taking each action
-        policy = self.actor_critic_old.get_policy( state_tensor )
+    def vector_choose_action(self, states):
+        with T.no_grad():
+            ## First we convert the many states into a tensor
+            state_tensor = T.tensor( states, device=self.actor_critic.device, dtype=T.float32 )
 
-        ## To sample an action using these probabilities we use the distributions package
-        action_dist   = T.distributions.Categorical(policy)
-        chosen_action = action_dist.sample()
+            ## We then calculate the probabilities of taking each action
+            policy = self.actor_critic.get_policy( state_tensor )
 
-        return chosen_action.item()
+            ## We then sample the policies to get the action taken in each env
+            action_dists   = T.distributions.Categorical(policy)
+            chosen_actions = action_dists.sample()
 
-    def train(self):
+            return chosen_actions.cpu().detach().numpy()
 
-        ## First we have each worker fill up its portion of the batch
-        self.memory.reset()
-        for worker in self.workers:
-            worker.fill_batch()
+    def train(self, states, actions, values):
 
-        ## We need to convert all of these arrays to pytorch tensors
-        states  = T.tensor(self.memory.states).to(self.actor_critic.device)
-        actions = T.tensor(self.memory.actions).to(self.actor_critic.device)
-        values  = T.tensor(self.memory.values).to(self.actor_critic.device).reshape(-1,1)
+        ## We get the new batch and convert to tensors
+        states  = T.tensor(states, dtype=T.float32, device=self.actor_critic.device)
+        actions = T.tensor(actions, dtype=T.int64, device=self.actor_critic.device)
+        values  = T.tensor(values, dtype=T.float32, device=self.actor_critic.device).reshape(-1,1)
 
         for _ in range(self.pol_sync):
 

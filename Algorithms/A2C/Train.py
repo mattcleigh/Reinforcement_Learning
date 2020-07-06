@@ -11,9 +11,10 @@ from itertools import count
 import torch as T
 import torch.nn as nn
 
-from A2C import Agent
 from Environments import Car_Env
-from Resources.Plotting import score_plot
+from Resources import Utils as myUT
+
+from A2C import Agent
 
 def main():
 
@@ -22,6 +23,8 @@ def main():
     test_mode = False
     load_prev = False
     render_on = False
+
+    save_every = 500
 
     env_name = "CartPole-v0"
     alg_name = "A2C"
@@ -42,33 +45,20 @@ def main():
                     name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 1e-3,
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64, activ = nn.PReLU(),
                     \
                     env_name = env_name,
-                    n_workers = 4, n_frames = 8,
-                    vf_coef = 0.1, ent_coef = 0.0001,
+                    n_workers = 16, n_frames = 32,
+                    vf_coef = 0.1, ent_coef = 0.01,
                     )
 
     if load_prev:
         agent.load_models()
 
-    ## Main training loop
-    for t in count():
-
-        if render_on:
-            agent.workers[0].env.render()
-
-        loss = agent.train()
-
-        if not test_mode:
-            if t>=500 and t%500==0:
-                agent.save_models()
-
-        print( "Iteration = {}, Loss = {:4.3f}        \r".format( t, loss ), end="" )
-        sys.stdout.flush()
+    myUT.train_ac_model(agent, env, render_on, test_mode, save_every)
 
 
 if __name__ == '__main__':

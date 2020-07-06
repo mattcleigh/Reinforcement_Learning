@@ -2,7 +2,9 @@ import numpy as np
 from collections import deque
 
 class SmallMemory:
-    """ This is similar to the DQN experience replay and
+    """ This class is no longer in use since switching to vectorised workers
+
+        This is similar to the DQN experience replay and
         exists to decorrelate updates. There are N workers,
         and each are allowed to expereience F frames. So the memory
         holds NxF transitions for the update.
