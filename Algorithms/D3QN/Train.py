@@ -41,7 +41,7 @@ def main():
                     name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-3,
+                    gamma = 0.99, lr = 1e-4, grad_clip = 0,
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64,

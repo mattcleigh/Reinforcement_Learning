@@ -26,7 +26,7 @@ class Agent(object):
                  name,
                  net_dir,
                  \
-                 gamma, lr,
+                 gamma, lr, grad_clip,
                  \
                  input_dims,  n_actions,
                  depth, width, activ,
@@ -134,7 +134,10 @@ class Agent(object):
             ## We do a single update step using the sum of losses (equivalent to two steps)
             loss = actor_loss + ( self.vf_coef * critic_loss ) - ( self.ent_coef * entropy )
             loss.backward()
-            nn.utils.clip_grad_norm_( self.actor_critic.parameters(), 0.5)
+
+            ## We might want to clip the gradient before performing SGD
+            if self.grad_clip > 0:
+                nn.utils.clip_grad_norm_( self.actor_critic.parameters(), self.grad_clip )
             self.optimiser.step()
 
             self.learn_step_counter += 1

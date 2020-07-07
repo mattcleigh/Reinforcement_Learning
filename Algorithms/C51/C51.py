@@ -101,7 +101,7 @@ class Agent(object):
                  name,
                  net_dir,
                  \
-                 gamma,       lr,
+                 gamma, lr, grad_clip,
                  \
                  input_dims,  n_actions,
                  depth, width,
@@ -312,6 +312,10 @@ class Agent(object):
             loss = loss * is_weights
         loss = loss.mean()
         loss.backward()
+
+        ## We might want to clip the gradient before performing SGD
+        if self.grad_clip > 0:
+            nn.utils.clip_grad_norm_( self.policy_net.parameters(), self.grad_clip )
         self.optimiser.step()
 
         self.learn_step_counter += 1

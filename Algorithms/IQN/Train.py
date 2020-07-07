@@ -22,7 +22,7 @@ def main():
     draw_return = False
     draw_interv = 10
 
-    env_name = "Pong-ram-v4"
+    env_name = "LunarLander-v2"
     alg_name = "IQN"
 
     ############################################
@@ -41,18 +41,18 @@ def main():
                     name    = env_name + "_" + alg_name,
                     net_dir = home_env + "Saved_Models",
                     \
-                    gamma = 0.99, lr = 1e-4,
+                    gamma = 0.99, lr = 1e-4, grad_clip = 0,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 5, width = 256,
+                    depth = 3, width = 256,
                     activ = nn.PReLU(), noisy = True,
                     \
                     eps     = 1.0,
                     eps_min = 0.01,
                     eps_dec = 5e-5,
                     \
-                    mem_size    = 1000000, batch_size = 32,
-                    target_sync = 1e-3,    freeze_up  = 10000,
+                    mem_size    = 1000000, batch_size = 64,
+                    target_sync = 1e-3, freeze_up = 90000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
