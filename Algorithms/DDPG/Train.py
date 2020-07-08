@@ -46,6 +46,7 @@ def main():
                     gamma = 0.99,
                     input_dims = inp_space, n_actions = act_space,
                     active = nn.PReLU(), grad_clip = 10, QL2 = 1e-2,
+                    noisy = True,
                     \
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
                     A_lr = 1e-4, A_depth = 2, A_width = 400,
