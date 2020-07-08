@@ -224,19 +224,6 @@ def train_dqn_model( agent, env, render_on, test_mode, save_every,
         print("----->  X / 255 - 0.5\n")
         ram_mode = True
 
-    # Loading previous experience
-    infile = open( "TestMemory.csv" , 'r' )
-    for line in infile:
-        line = line.strip()
-        columns = line.split(",")
-        state   = [ float(i) for i in columns[:8] ]
-        action  = int(columns[8])
-        reward  = float(columns[9])
-        n_state = [ float(i) for i in columns[10:18] ]
-        done    = bool(columns[18])
-        agent.store_transition( state, action, reward, n_state, done )
-    infile.close()
-
     ## Episode loop
     all_time = 0
     for ep in count():

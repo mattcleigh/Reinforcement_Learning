@@ -25,7 +25,7 @@ class IQNDuelMLP(nn.Module):
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
                        depth, width, activ,
-                       noisy,
+                       noisy, duel,
                        n_quantiles ):
         super(IQNDuelMLP, self).__init__()
 
@@ -35,6 +35,7 @@ class IQNDuelMLP(nn.Module):
         self.chpt_file  = os.path.join(self.chpt_dir, self.name)
         self.input_dims = input_dims
         self.n_actions  = n_actions
+        self.duel = duel
 
         ## The IQN distributional RL parameters
         self.n_quantiles = n_quantiles
@@ -62,16 +63,18 @@ class IQNDuelMLP(nn.Module):
         ]))
 
         ## Defining the dueling network arcitecture
-        self.V_stream = nn.Sequential(OrderedDict([
-            ( "V_lin_1",   linear_layer(width, width) ),
-            ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width, 1) ),
-        ]))
         self.A_stream = nn.Sequential(OrderedDict([
             ( "A_lin_1",   linear_layer(width, width) ),
             ( "A_act_1",   activ ),
             ( "A_lin_out", linear_layer(width, n_actions) ),
         ]))
+
+        if duel:
+            self.V_stream = nn.Sequential(OrderedDict([
+                ( "V_lin_1",   linear_layer(width, width) ),
+                ( "V_act_1",   activ ),
+                ( "V_lin_out", linear_layer(width, 1) ),
+            ]))
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -103,26 +106,26 @@ class IQNDuelMLP(nn.Module):
         ## We then combine the streams together using the hadamard product
         merged = rpt_base_out*emb_out
 
-        ## Now we feed the merged layer through the duelling stream
+        ## Now we feed the merged layer through the later stream
         ## Breaking up each sample into batch, k, val/actions
-        V = self.V_stream(merged).view(batch_size, self.n_quantiles, -1)
         A = self.A_stream(merged).view(batch_size, self.n_quantiles, self.n_actions)
 
         ## We now transpose the last two dims to be the same as the other algorithms (QR and C51)
         ## batch, actions, k
-        V = V.transpose( -1, -2 )
         A = A.transpose( -1, -2 )
 
-        ## Finally we combing the dueling stream
-        Q = V + A - A.mean( dim=1, keepdim=True)
+        ## If we are using a dueling arcitecture then we get the v stream
+        if self.duel:
+            V = self.V_stream(merged).view(batch_size, self.n_quantiles, -1)
+            V = V.transpose( -1, -2 )
+            Q = V + A - A.mean( dim=1, keepdim=True)
+            return Q
 
-        return Q
-
+        return A
 
     def save_checkpoint(self, flag=""):
         print("... saving network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
-
 
     def load_checkpoint(self, flag=""):
         print("... loading network checkpoint ..." )
@@ -137,8 +140,8 @@ class Agent(object):
                  gamma, lr, grad_clip,
                  \
                  input_dims,  n_actions,
-                 depth, width,
-                 activ, noisy,
+                 depth, width, activ,
+                 noisy, duel,
                  \
                  eps,
                  eps_min,
@@ -162,10 +165,10 @@ class Agent(object):
         ## The policy and target networks
         self.policy_net = IQNDuelMLP( self.name + "_policy_network", net_dir,
                                       input_dims, n_actions, depth, width, activ,
-                                      noisy, n_quantiles )
+                                      noisy, duel, n_quantiles )
         self.target_net = IQNDuelMLP( self.name + "_target_network", net_dir,
                                       input_dims, n_actions, depth, width, activ,
-                                      noisy, n_quantiles )
+                                      noisy, duel, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
         ## The gradient descent algorithm used to train the policy network
