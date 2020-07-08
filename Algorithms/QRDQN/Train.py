@@ -39,7 +39,7 @@ def main():
 
     agent = Agent(
                     name    = env_name + "_" + alg_name,
-                    net_dir = home_env + "Saved_Models",
+                    net_dir = home_env + "Saved_Models/" + alg_name,
                     \
                     gamma = 0.99, lr = 1e-4, grad_clip = 0,
                     \
@@ -47,9 +47,7 @@ def main():
                     depth = 3, width = 64,
                     activ = nn.PReLU(), noisy = True,
                     \
-                    eps     = 1.0,
-                    eps_min = 0.01,
-                    eps_dec = 5e-5,
+                    eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
                     target_sync = 1e-2,   freeze_up  = 500,

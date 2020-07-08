@@ -107,9 +107,7 @@ class Agent(object):
                  depth, width,
                  activ, noisy,
                  \
-                 eps,
-                 eps_min,
-                 eps_dec ,
+                 eps, eps_min, eps_dec,
                  \
                  mem_size,    batch_size,
                  target_sync, freeze_up,

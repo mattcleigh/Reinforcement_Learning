@@ -19,10 +19,10 @@ def main():
     render_on = True
     save_every = 10000
 
-    draw_return = True
+    draw_return = False
     draw_interv = 20
 
-    env_name = "CartPole-v0"
+    env_name = "LunarLander-v2"
     alg_name = "IQN"
 
     ############################################
@@ -39,20 +39,18 @@ def main():
 
     agent = Agent(
                     name    = env_name + "_" + alg_name,
-                    net_dir = home_env + "Saved_Models",
+                    net_dir = home_env + "Saved_Models/" + alg_name,
                     \
-                    gamma = 0.99, lr = 1e-3, grad_clip = 0,
+                    gamma = 0.99, lr = 1e-3, grad_clip = 10,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 64, activ = nn.PReLU(),
-                    noisy = True, duel = False,
+                    depth = 2, width = 512, activ = nn.PReLU(),
+                    noisy = True, duel = True,
                     \
-                    eps     = 1.0,
-                    eps_min = 0.01,
-                    eps_dec = 5e-5,
+                    eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
-                    target_sync = 200, freeze_up = 1000,
+                    target_sync = 5e-3, freeze_up = 10000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,

@@ -2,7 +2,6 @@ import sys
 home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
-from Resources import MemoryMethods as myMM
 from Resources import Networks as myNN
 from Resources import Plotting as myPT
 from Resources import Utils as myUT
@@ -65,10 +64,6 @@ class Agent(object):
 
     def load_models(self, flag=""):
         self.actor_critic.load_checkpoint(flag)
-
-    def store_transition(self, state, action, value):
-        ## Interface to memory, so no outside class directly calls it
-        self.memory.store_transition(state, action, value)
 
     def vector_step(self, render_on):
         return self.vec_workers.fill_batch(render_on)

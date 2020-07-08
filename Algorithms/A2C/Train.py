@@ -43,7 +43,7 @@ def main():
 
     agent = Agent(
                     name    = alg_name + "_" + env_name,
-                    net_dir = home_env + "Saved_Models",
+                    net_dir = home_env + "Saved_Models/" + alg_name,
                     \
                     gamma = 0.99, lr = 1e-4, grad_clip = 0,
                     \

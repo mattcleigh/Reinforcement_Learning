@@ -145,8 +145,7 @@ class Experience_Replay(object):
         ## unify these methods we return them too, even though
         ## we do not use them.
 
-        return states, actions, rewards, next_states, dones, [1], indicies
-
+        return states, actions, rewards, next_states, dones, [1], indices
 
 class PER(object):
     """ A class which contains the prioritised experience replay buffer for DQN models
@@ -398,3 +397,22 @@ class N_Step_PER(object):
     @property
     def n_entries(self):
         return self.sumtree.n_entries
+
+
+class Cont_Exp_Replay(Experience_Replay):
+    """ A class which contains the standard experience replay buffer for DDPG
+        This differs from the usual object as now each action is a full vector
+        containing floats, rather than a single int object
+    """
+    def __init__(self, capacity, state_input_shape, n_actions):
+        super(Cont_Exp_Replay, self).__init__(capacity,  state_input_shape)
+        self.action_memory = np.zeros( (capacity, n_actions), dtype=np.float32 )
+
+class Cont_N_Step_PER(N_Step_PER):
+    """ A class which contains the n-step PER replay buffer for DDPG
+        This differs from the usual object as now each action is a full vector
+        containing floats, rather than a single int object
+    """
+    def __init__(self, capacity, state_input_shape, n_actions, eps=0.01, a=0.5, beta=0.4, beta_inc=1e-4, max_priority=1, n_step=3, gamma=0.999):
+        super(Cont_N_Step_PER, self).__init__(capacity, state_input_shape, eps, a, beta, beta_inc, max_priority, n_step, gamma)
+        self.action_memory = np.zeros( (capacity, n_actions), dtype=np.float32 )

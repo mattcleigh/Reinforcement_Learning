@@ -3,35 +3,25 @@ home_env = '../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import MemoryMethods as myMM
-from Resources import Networks as myNN
-from Resources import Plotting as myPT
-from Resources import Utils as myUT
-from Environments import Car_Env
 
-import gym
 import os
 import time
 import numpy as np
 import numpy.random as rd
-import matplotlib.pyplot as plt
 from collections import OrderedDict
 
 import torch as T
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
-
 
 class CriticNetwork(nn.Module):
     """ A simple and configurable multilayer perceptron.
-        An actor-critic method usually includes one network each.
-        However, feature extraction usually requires the same tools.
-        Thus, they share the same base layer.
+        Actions are embedded into network after first layer.
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
                        depth, width, activ ):
-        super(ActorCriticMLP, self).__init__()
+        super(CriticNetwork, self).__init__()
 
         ## Defining the network features
         self.name       = name
@@ -40,45 +30,92 @@ class CriticNetwork(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        ## Defining the basic layer structure
+        ## Defining the state input layer which has a normalisation
+        self.state_layer  = nn.Sequential(OrderedDict([
+            ( "base_lin_1", nn.Linear(input_dims[0], width) ),
+            ( "base_act_1", activ ),
+            ( "base_nrm_1", nn.LayerNorm(width) ),
+        ]))
+
+        ## The actions are included from layer 2 onwards
+        layers = []
+        for l_num in range(2, depth+1):
+            inpt = (n_actions+width) if l_num == 2 else width
+            layers.append(( "comb_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "comb_act_{}".format(l_num), activ ))
+        layers.append(( "comb_lin_out", nn.Linear(width, 1) ))
+        self.comb_stream = nn.Sequential(OrderedDict(layers))
+
+        ## The output layer gets special weight initialisation
+        dev = 3e-3
+        nn.init.uniform_(self.comb_stream.comb_lin_out.weight.data, -dev, dev )
+        nn.init.uniform_(self.comb_stream.comb_lin_out.bias.data,   -dev, dev )
+
+        ## Moving the network to the device
+        self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
+        self.to(self.device)
+
+    def forward(self, state, action):
+        state_out = self.state_layer(state)
+        combined = T.cat((state_out, action), 1 )
+        q_value = self.comb_stream(combined)
+        return q_value
+
+    def save_checkpoint(self, flag=""):
+        print("... saving critic network checkpoint ..." )
+        T.save(self.state_dict(), self.chpt_file+flag)
+
+    def load_checkpoint(self, flag=""):
+        print("... loading critic network checkpoint ..." )
+        self.load_state_dict(T.load(self.chpt_file+flag))
+
+class ActorNetwork(nn.Module):
+    """ A simple and configurable multilayer perceptron.
+        Normalisation layer applied throughout.
+        Tanh applied on final layer to clip the output.
+        Scaling can then happen in post depending on env.
+    """
+    def __init__(self, name, chpt_dir,
+                       input_dims, n_actions,
+                       depth, width, activ ):
+        super(ActorNetwork, self).__init__()
+
+        ## Defining the network features
+        self.name       = name
+        self.chpt_dir   = chpt_dir
+        self.chpt_file  = os.path.join(self.chpt_dir, self.name)
+        self.input_dims = input_dims
+        self.n_actions  = n_actions
+
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
             layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
             layers.append(( "act_{}".format(l_num), activ ))
+            layers.append(( "nrm_{}".format(l_num), nn.LayerNorm(width) ))
+        layers.append(( "lin_out", nn.Linear(width, n_actions) ))
+        layers.append(( "act_out", nn.Tanh() ))
+        self.main_stream = nn.Sequential(OrderedDict(layers))
 
-            ## Only the first layer gets a layer normalisation layer
-            if l_num==1:
-                layers.append(( "nrm_{}".format(l_num), nn.LayerNorm(width) ))
-
-        self.base_stream = nn.Sequential(OrderedDict(layers))
+        ## The output layer gets special weight initialisation
+        dev = 3e-3
+        nn.init.uniform_(self.main_stream.lin_out.weight.data, -dev, dev )
+        nn.init.uniform_(self.main_stream.lin_out.bias.data,   -dev, dev )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state):
-        shared_out = self.base_stream(state)
-        policy = self.actor_stream(shared_out)
-        value  = self.critic_stream(shared_out)
-        return policy, value
-
-    def get_value(self, state):
-        shared_out = self.base_stream(state)
-        value = self.critic_stream(shared_out)
-        return value
-
-    def get_policy(self, state):
-        shared_out = self.base_stream(state)
-        policy = self.actor_stream(shared_out)
-        return policy
+        action = self.main_stream(state)
+        return action
 
     def save_checkpoint(self, flag=""):
-        print("... saving network checkpoint ..." )
+        print("... saving actor network checkpoint ..." )
         T.save(self.state_dict(), self.chpt_file+flag)
 
     def load_checkpoint(self, flag=""):
-        print("... loading network checkpoint ..." )
+        print("... loading actor network checkpoint ..." )
         self.load_state_dict(T.load(self.chpt_file+flag))
 
 
@@ -87,108 +124,166 @@ class Agent(object):
                  name,
                  net_dir,
                  \
-                 gamma, lr, grad_clip,
+                 gamma,
+                 input_dims, n_actions,
+                 active, grad_clip, QL2,
                  \
-                 input_dims,  n_actions,
-                 depth, width, activ,
+                 C_lr, C_depth, C_width,
+                 A_lr, A_depth, A_width,
                  \
-                 env_name,
-                 n_workers, n_frames,
-                 vf_coef, ent_coef,
+                 eps, eps_min, eps_dec,
+                 \
+                 mem_size,    batch_size,
+                 target_sync, freeze_up,
+                 \
+                 PER_on,      n_step,
+                 PEReps,      PERa,
+                 PERbeta,     PERb_inc,
+                 PERmax,
                  ):
 
         ## Setting all class variables
         self.__dict__.update(locals())
         self.learn_step_counter = 0
 
-        ## The actor and critic networks are initialised
-        self.actor_critic = myNN.ActorCriticMLP( self.name + "_ac_networks", net_dir,
-                                            input_dims, n_actions,
-                                            depth, width, activ )
+        ## The critic and its corresponding target network
+        self.critic   = CriticNetwork( self.name + "_critic", net_dir,
+                                       input_dims, n_actions,
+                                       C_depth, C_width, active )
+        self.t_critic = CriticNetwork( self.name + "_targ_critic", net_dir,
+                                       input_dims, n_actions,
+                                       C_depth, C_width, active )
+        self.t_critic.load_state_dict( self.critic.state_dict() )
 
-        ## The gradient descent algorithm and loss function used to train the policy network
-        self.optimiser = optim.Adam( self.actor_critic.parameters(), lr = lr )
+        ## The actor and its corresponding target network
+        self.actor   = ActorNetwork( self.name + "_actor", net_dir,
+                                     input_dims, n_actions,
+                                     A_depth, A_width, active )
+        self.t_actor = ActorNetwork( self.name + "_targ_actor", net_dir,
+                                     input_dims, n_actions,
+                                     A_depth, A_width, active )
+        self.t_actor.load_state_dict( self.actor.state_dict() )
+
+        ## The gradient descent algorithms and loss function
+        self.C_optimiser = optim.Adam( self.critic.parameters(), lr = C_lr, weight_decay = QL2 )
+        self.A_optimiser = optim.Adam( self.actor.parameters(),  lr = A_lr )
         self.loss_fn = nn.SmoothL1Loss()
 
-        ## We create the memory to hold the update for each batch
-        self.memory = myMM.SmallMemory( n_workers*n_frames, input_dims )
-        self.memory.reset()
+        ## Priotised experience replay for multi-timestep learning
+        if PER_on and n_step > 1:
+            self.memory = myMM.Cont_N_Step_PER( mem_size, input_dims, n_actions,
+                                eps=PEReps, a=PERa, beta=PERbeta,
+                                beta_inc=PERb_inc, max_priority=PERmax,
+                                n_step=n_step, gamma=gamma )
 
-        ## We now initiate the vectorised worker environment
-        self.vec_workers = myUT.Vectorised_Worker(self, n_workers, env_name, n_frames, gamma)
+        ## Standard experience replay
+        elif not PER_on and n_step==1:
+            self.memory = myMM.Cont_Exp_Replay( mem_size, input_dims, n_actions )
 
-        ## We also initiate the graph, which is an agent attribute as it is called by all workers
-        plt.ion()
-        self.sp = myPT.score_plot(self.name)
+        else:
+            print( "\n\n!!! Only options are n_step+per or none !!!\n\n" )
+            exit()
 
     def save_models(self, flag=""):
-        self.actor_critic.save_checkpoint(flag)
+        self.critic.save_checkpoint(flag)
+        self.t_critic.save_checkpoint(flag)
+        self.actor.save_checkpoint(flag)
+        self.t_actor.save_checkpoint(flag)
 
     def load_models(self, flag=""):
-        self.actor_critic.load_checkpoint(flag)
+        self.critic.load_checkpoint(flag)
+        self.t_critic.load_checkpoint(flag)
+        self.actor.load_checkpoint(flag)
+        self.t_actor.load_checkpoint(flag)
 
-    def store_transition(self, state, action, value):
-        ## Interface to memory, so no outside class directly calls it
-        self.memory.store_transition(state, action, value)
+    def store_transition(self, state, action, reward, next_state, done):
+        self.memory.store_transition(state, action, reward, next_state, done)
 
-    def vector_step(self, render_on):
-        return self.vec_workers.fill_batch(render_on)
+    def sync_target_networks(self):
 
-    def vector_choose_action(self, states):
+        if self.target_sync>1:
+            print("\n\n\nWarning: DDPG only supports soft network updates\n\n\n")
+            exit()
 
+        for tp, pp in zip( self.t_critic.parameters(), self.critic.parameters() ):
+            tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
+
+        for tp, pp in zip( self.t_actor.parameters(), self.actor.parameters() ):
+            tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
+
+    def choose_action(self, state):
+        ## Act completly randomly for the first x frames
+        if self.memory.mem_cntr < self.freeze_up:
+            action = np.random.uniform( -1, 1, self.n_actions )
+
+        ## Then act purely greedily with noise
+        else:
+            with T.no_grad():
+                state_tensor = T.tensor( state, device=self.actor.device, dtype=T.float32 )
+                action   = self.actor(state_tensor).cpu().numpy()
+                noise    = rd.uniform( -self.eps, self.eps, self.n_actions )
+                self.eps = max( self.eps - self.eps_dec, self.eps_min )
+                action   = np.clip( action + noise, -1, 1 )
+
+        return action, 0
+
+    def train(self):
+
+        ## We dont train until the memory is at least one batch_size
+        if self.memory.mem_cntr < max(self.batch_size, self.freeze_up):
+            return 0
+
+        ## Collect the batch
+        states, actions, rewards, next_states, dones, is_weights, indices = self.memory.sample_memory(self.batch_size)
+
+        ## We need to convert all of these arrays to pytorch tensors
+        states      = T.tensor( states,      device = self.critic.device )
+        actions     = T.tensor( actions,     device = self.critic.device )
+        rewards     = T.tensor( rewards,     device = self.critic.device ).reshape(-1, 1)
+        next_states = T.tensor( next_states, device = self.critic.device )
+        dones       = T.tensor( dones,       device = self.critic.device ).reshape(-1, 1)
+        is_weights  = T.tensor( is_weights,  device = self.critic.device )
+
+        ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
-            ## First we convert the many states into a tensor
-            state_tensor = T.tensor( states, device=self.actor_critic.device, dtype=T.float32 )
 
-            ## We then calculate the probabilities of taking each action
-            policy = self.actor_critic.get_policy( state_tensor )
+            ## First we need the optimising actions using the target actor
+            next_actions = self.t_actor(next_states)
 
-            ## We then sample the policies to get the action taken in each env
-            action_dists   = T.distributions.Categorical(policy)
-            chosen_actions = action_dists.sample()
+            ## Now we find the values of those actions using the target critic
+            next_Q_values = self.t_critic( next_states, next_actions )
 
-            return chosen_actions.cpu().detach().numpy()
+            ## Now we can compute the TD targets
+            td_target = rewards + self.gamma * next_Q_values * (~dones)
+            td_target = td_target.detach()
 
-    def train(self, states, actions, values):
+        ## We compute the current Q value estimates using the critic
+        Q_values = self.critic(states, actions)
 
-        ## We get the new batch and convert to tensors
-        states  = T.tensor(states, dtype=T.float32, device=self.actor_critic.device)
-        actions = T.tensor(actions, dtype=T.int64, device=self.actor_critic.device)
-        values  = T.tensor(values, dtype=T.float32, device=self.actor_critic.device).reshape(-1,1)
+        ### Calculate the TD-Errors to be used in PER and update the replay
+        if self.PER_on:
+            new_errors = T.abs(Q_values - td_target).detach().cpu().numpy().squeeze()
+            self.memory.batch_update(indices, new_errors)
 
-        ## We zero out the gradients, as required for each pyrotch train loop
-        self.optimiser.zero_grad()
+        ## Update the Q-Function using gradient descent
+        self.C_optimiser.zero_grad()
+        C_loss = self.loss_fn( Q_values, td_target )
+        if self.PER_on:
+            C_loss = C_loss * is_weights.unsqueeze(1)
+        C_loss = C_loss.mean()
+        C_loss.backward()
+        self.C_optimiser.step()
 
-        ## We start by calculating the critic/value loss
-        ## We need both the value and policy based on the current states
-        policy, state_values = self.actor_critic(states)
+        ## Update the policy by one step of gradient ascent
+        self.A_optimiser.zero_grad()
+        best_actions = self.actor(states)
+        A_loss = -self.critic(states, best_actions).mean()
+        A_loss.backward()
+        self.A_optimiser.step()
 
-        ## We use the td_error as an estimator of the advantage value and the critic loss
-        td_errors   = values - state_values
-        critic_loss = self.loss_fn(state_values, values)
-
-        ## Now we move onto the actor/policy loss
-        ## We start with the distribution over the actions taken
-        action_dist = T.distributions.Categorical(policy)
-
-        ## We now want to calculate the log_probs of the chosen actions
-        log_probs = action_dist.log_prob(actions).view(-1, 1)
-
-        ## We calculate the loss of the actor (negative for SGA)
-        actor_loss  = -(log_probs * td_errors.detach()).mean()
-
-        ## We finally use the distribution to get the regularising entropy
-        entropy = action_dist.entropy().mean()
-
-        ## We do a single update step using the sum of losses (equivalent to two steps)
-        loss = actor_loss + ( self.vf_coef * critic_loss ) - ( self.ent_coef * entropy )
-        loss.backward()
-
-        ## We might want to clip the gradient before performing SGD
-        if self.grad_clip > 0:
-            nn.utils.clip_grad_norm_( self.actor_critic.parameters(), self.grad_clip )
-        self.optimiser.step()
+        ## Update the target network parameters
+        self.sync_target_networks()
 
         self.learn_step_counter += 1
 
-        return loss.item()
+        return C_loss.item()+A_loss.item()

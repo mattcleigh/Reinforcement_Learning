@@ -143,9 +143,7 @@ class Agent(object):
                  depth, width, activ,
                  noisy, duel,
                  \
-                 eps,
-                 eps_min,
-                 eps_dec ,
+                 eps, eps_min, eps_dec,
                  \
                  mem_size,    batch_size,
                  target_sync, freeze_up,
@@ -160,6 +158,7 @@ class Agent(object):
 
         ## Setting all class variables
         self.__dict__.update(locals())
+        print(locals())
         self.learn_step_counter = 0
 
         ## The policy and target networks
