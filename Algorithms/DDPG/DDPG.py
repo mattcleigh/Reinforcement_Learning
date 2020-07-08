@@ -254,7 +254,7 @@ class Agent(object):
             next_Q_values = self.t_critic( next_states, next_actions )
 
             ## Now we can compute the TD targets
-            td_target = rewards + self.gamma * next_Q_values * (~dones)
+            td_target = rewards + ( self.gamma ** self.n_step ) * next_Q_values * (~dones)
             td_target = td_target.detach()
 
         ## We compute the current Q value estimates using the critic

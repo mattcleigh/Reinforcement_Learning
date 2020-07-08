@@ -48,14 +48,14 @@ def main():
                     active = nn.PReLU(), grad_clip = 10, QL2 = 1e-2,
                     \
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
-                    A_lr = 1e-2, A_depth = 2, A_width = 400,
+                    A_lr = 1e-4, A_depth = 2, A_width = 400,
                     \
                     eps = 1e-1, eps_min = 1e-3, eps_dec = 1e-6,
                     \
                     mem_size = 50000,    batch_size = 64,
-                    target_sync = 1e-3,  freeze_up = 10000,
+                    target_sync = 5e-3,  freeze_up = 10000,
                     \
-                    PER_on    = True, n_step  = 3,
+                    PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.6,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
                     PERmax    = 1,
