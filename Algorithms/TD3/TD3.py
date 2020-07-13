@@ -15,14 +15,14 @@ import torch as T
 import torch.nn as nn
 import torch.optim as optim
 
-class CriticNetwork(nn.Module):
-    """ A simple and configurable multilayer perceptron.
-        Actions are embedded into network after first layer.
+class TwinCriticNetwork(nn.Module):
+    """ A couple of simple and configurable multilayer perceptrons.
+        One class contains both critic networks used in TD3
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
                        depth, width, activ ):
-        super(CriticNetwork, self).__init__()
+        super(TwinCriticNetwork, self).__init__()
 
         ## Defining the network features
         self.name       = name
@@ -31,36 +31,38 @@ class CriticNetwork(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        ## Defining the state input layer which has a normalisation
-        self.state_layer  = nn.Sequential(OrderedDict([
-            ( "base_lin_1", nn.Linear(input_dims[0], width) ),
-            ( "base_act_1", activ ),
-            ( "base_nrm_1", nn.LayerNorm(width) ),
-        ]))
-
-        ## The actions are included from layer 2 onwards
+        ## The layer structure of the first critic
         layers = []
-        for l_num in range(2, depth+1):
-            inpt = (n_actions+width) if l_num == 2 else width
-            layers.append(( "comb_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "comb_act_{}".format(l_num), activ ))
-        layers.append(( "comb_lin_out", nn.Linear(width, 1) ))
-        self.comb_stream = nn.Sequential(OrderedDict(layers))
+        for l_num in range(1, depth+1):
+            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
+            layers.append(( "crit_1_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "crit_1_act_{}".format(l_num), activ ))
+        layers.append(( "crit_1_lin_out", nn.Linear(width, 1) ))
+        self.crit_layers_1 = nn.Sequential(OrderedDict(layers))
 
-        ## The output layer gets special weight initialisation
-        dev = 3e-3
-        nn.init.uniform_(self.comb_stream.comb_lin_out.weight.data, -dev, dev )
-        nn.init.uniform_(self.comb_stream.comb_lin_out.bias.data,   -dev, dev )
+        ## The layer structure of the second critic
+        layers = []
+        for l_num in range(1, depth+1):
+            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
+            layers.append(( "crit_2_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "crit_2_act_{}".format(l_num), activ ))
+        layers.append(( "crit_2_lin_out", nn.Linear(width, 1) ))
+        self.crit_layers_2 = nn.Sequential(OrderedDict(layers))
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state, action):
-        state_out = self.state_layer(state)
-        combined = T.cat((state_out, action), 1 )
-        q_value = self.comb_stream(combined)
-        return q_value
+        state_action = T.cat((state, action), 1 )
+        q1 = self.crit_layers_1(state_action)
+        q2 = self.crit_layers_2(state_action)
+        return q1, q2
+
+    def Q1_only(self, state, action):
+        state_action = T.cat((state, action), 1 )
+        q1 = self.crit_layers_1(state_action)
+        return q1
 
     def save_checkpoint(self, flag=""):
         print("... saving critic network checkpoint ..." )
@@ -72,7 +74,6 @@ class CriticNetwork(nn.Module):
 
 class ActorNetwork(nn.Module):
     """ A simple and configurable multilayer perceptron.
-        Normalisation layer applied throughout.
         Tanh applied on final layer to clip the output.
         Scaling can then happen in post depending on env.
     """
@@ -100,7 +101,6 @@ class ActorNetwork(nn.Module):
             inpt = input_dims[0] if l_num == 1 else width
             layers.append(( "lin_{}".format(l_num), linear_layer(inpt, width) ))
             layers.append(( "act_{}".format(l_num), activ ))
-            layers.append(( "nrm_{}".format(l_num), nn.LayerNorm(width) ))
         layers.append(( "lin_out", linear_layer(width, n_actions) ))
         layers.append(( "act_out", nn.Tanh() ))
         self.main_stream = nn.Sequential(OrderedDict(layers))
@@ -158,22 +158,13 @@ class Agent(object):
         self.learn_step_counter = 0
 
         ## The twin critics and their corresponding target networks
-        self.critic_1 = CriticNetwork( self.name + "_critic_1", net_dir,
+        self.critic = TwinCriticNetwork( self.name + "_critic_1", net_dir,
                                        input_dims, n_actions,
                                        C_depth, C_width, active )
-        self.critic_2 = CriticNetwork( self.name + "_critic_2", net_dir,
-                                       input_dims, n_actions,
-                                       C_depth, C_width, active )
-
-        self.t_critic_1 = CriticNetwork( self.name + "_targ_critic_1", net_dir,
+        self.t_critic = TwinCriticNetwork( self.name + "_targ_critic_1", net_dir,
                                          input_dims, n_actions,
                                          C_depth, C_width, active )
-        self.t_critic_2 = CriticNetwork( self.name + "_targ_critic_2", net_dir,
-                                         input_dims, n_actions,
-                                         C_depth, C_width, active )
-
-        self.t_critic_1.load_state_dict( self.critic_1.state_dict() )
-        self.t_critic_2.load_state_dict( self.critic_2.state_dict() )
+        self.t_critic.load_state_dict( self.critic.state_dict() )
 
         ## The actor and its corresponding target network
         self.actor = ActorNetwork( self.name + "_actor", net_dir,
@@ -185,9 +176,8 @@ class Agent(object):
         self.t_actor.load_state_dict( self.actor.state_dict() )
 
         ## The gradient descent algorithms and loss function
-        self.C_optimiser_1 = optim.Adam( self.critic_1.parameters(), lr = C_lr, weight_decay = QL2 )
-        self.C_optimiser_2 = optim.Adam( self.critic_2.parameters(), lr = C_lr, weight_decay = QL2 )
-        self.A_optimiser = optim.Adam( self.actor.parameters(),  lr = A_lr )
+        self.C_optimiser = optim.Adam( self.critic.parameters(), lr = C_lr, weight_decay = QL2 )
+        self.A_optimiser = optim.Adam( self.actor.parameters(), lr = A_lr )
         self.loss_fn = nn.SmoothL1Loss()
 
         ## Priotised experience replay for multi-timestep learning
@@ -206,19 +196,15 @@ class Agent(object):
             exit()
 
     def save_models(self, flag=""):
-        self.critic_1.save_checkpoint(flag)
-        self.critic_2.save_checkpoint(flag)
-        self.t_critic_1.save_checkpoint(flag)
-        self.t_critic_2.save_checkpoint(flag)
+        self.critic.save_checkpoint(flag)
         self.actor.save_checkpoint(flag)
+        self.t_critic.save_checkpoint(flag)
         self.t_actor.save_checkpoint(flag)
 
     def load_models(self, flag=""):
-        self.critic_1.load_checkpoint(flag)
-        self.critic_2.load_checkpoint(flag)
-        self.t_critic_1.load_checkpoint(flag)
-        self.t_critic_2.load_checkpoint(flag)
+        self.critic.load_checkpoint(flag)
         self.actor.load_checkpoint(flag)
+        self.t_critic.load_checkpoint(flag)
         self.t_actor.load_checkpoint(flag)
 
     def store_transition(self, state, action, reward, next_state, done):
@@ -230,10 +216,7 @@ class Agent(object):
             print("\n\n\nWarning: DDPG only supports soft network updates\n\n\n")
             exit()
 
-        for tp, pp in zip( self.t_critic_1.parameters(), self.critic_1.parameters() ):
-            tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
-
-        for tp, pp in zip( self.t_critic_2.parameters(), self.critic_2.parameters() ):
+        for tp, pp in zip( self.t_critic.parameters(), self.critic.parameters() ):
             tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
 
         for tp, pp in zip( self.t_actor.parameters(), self.actor.parameters() ):
@@ -289,37 +272,24 @@ class Agent(object):
                 next_actions = T.clamp( next_actions+noise, -1, 1 )
 
             ## Now we find the values of those actions using both target critics and take the min
-            next_Q_values_1 = self.t_critic_1( next_states, next_actions )
-            next_Q_values_2 = self.t_critic_2( next_states, next_actions )
-            next_Q_values = T.min(next_Q_values_1, next_Q_values_2)
+            next_Q_1, next_Q_2 = self.t_critic( next_states, next_actions )
+            next_Q_values = T.min(next_Q_1, next_Q_2)
 
             ## Now we can compute the TD targets
             td_target = rewards + ( self.gamma ** self.n_step ) * next_Q_values * (~dones)
             td_target = td_target.detach()
 
-        ## We compute the current Q value estimates using the first critic
-        Q_values_1 = self.critic_1(states, actions)
+        ## We compute the current Q value estimates using the two critics
+        Q_1, Q_2 = self.critic(states, actions)
 
-        ## Calculate the TD-Errors using Q1 to be used in PER and update the replay
+        ## Update the Q-Function of the twin critic using gradient descent
+        self.C_optimiser.zero_grad()
+        C_loss = self.loss_fn( Q_1, td_target ) + self.loss_fn( Q_2, td_target )
         if self.PER_on:
-            new_errors = T.abs(Q_values_1 - td_target).detach().cpu().numpy().squeeze()
-            self.memory.batch_update(indices, new_errors)
-
-        ## Update the Q-Function using gradient descent
-        self.C_optimiser_1.zero_grad()
-        C_loss_1 = self.loss_fn( Q_values_1, td_target )
-        if self.PER_on:
-            C_loss_1 = C_loss_1 * is_weights.unsqueeze(1)
-        C_loss_1 = C_loss_1.mean()
-        C_loss_1.backward()
-        self.C_optimiser_1.step()
-
-        ## We do the same steps for the second critic but we do not update PER
-        self.C_optimiser_2.zero_grad()
-        Q_values_2 = self.critic_2(states, actions)
-        C_loss_2 = self.loss_fn( Q_values_2, td_target ).mean()
-        C_loss_2.backward()
-        self.C_optimiser_2.step()
+            C_loss = C_loss * is_weights.unsqueeze(1)
+        C_loss = C_loss.mean()
+        C_loss.backward()
+        self.C_optimiser.step()
 
         ## Only update policy and target networks every so often
         if self.learn_step_counter % self.delay == 0:
@@ -327,13 +297,19 @@ class Agent(object):
             ## Update the policy by one step of gradient ascent
             self.A_optimiser.zero_grad()
             best_actions = self.actor(states)
-            A_loss = -self.critic_1(states, best_actions).mean()
+            A_loss = -self.critic.Q1_only(states, best_actions).mean()
             A_loss.backward()
             self.A_optimiser.step()
 
             ## Update the target network parameters
             self.sync_target_networks()
 
+        ## Calculate the TD-Errors using both networks to be used in PER and update the replay
+        if self.PER_on:
+            Q_avg = ( Q_1 + Q_2 ) / 2
+            new_errors = T.abs(Q_avg - td_target).detach().cpu().numpy().squeeze()
+            self.memory.batch_update(indices, new_errors)
+
         self.learn_step_counter += 1
 
-        return C_loss_1.item()+C_loss_2.item()
+        return C_loss

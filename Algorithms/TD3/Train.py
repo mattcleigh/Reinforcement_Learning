@@ -24,7 +24,7 @@ def main():
     render_on = True
     save_every = 10000
 
-    env_name = "BipedalWalker-v3"
+    env_name = "LunarLanderContinuous-v2"
     alg_name = "TD3"
 
     ############################################
@@ -42,8 +42,8 @@ def main():
                     \
                     gamma = 0.99,
                     input_dims = inp_space, n_actions = act_space,
-                    active = nn.PReLU(), grad_clip = 10, QL2 = 1e-2,
-                    noisy = True,
+                    active = nn.PReLU(), grad_clip = 10, QL2 = 0,
+                    noisy = False,
                     \
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
                     A_lr = 1e-3, A_depth = 2, A_width = 400,
@@ -52,10 +52,10 @@ def main():
                     \
                     delay = 2, smooth_noise = 0.2, noise_clip = 0.5,
                     \
-                    mem_size = 100000,   batch_size = 64,
+                    mem_size = 100000,   batch_size = 100,
                     target_sync = 5e-3,  freeze_up = 10000,
                     \
-                    PER_on    = True, n_step  = 3,
+                    PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.6,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
                     PERmax    = 1,
