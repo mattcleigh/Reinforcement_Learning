@@ -142,6 +142,8 @@ class Agent(object):
                  \
                  eps, eps_min, eps_dec,
                  \
+                 delay, smooth_noise, noise_clip,
+                 \
                  mem_size,    batch_size,
                  target_sync, freeze_up,
                  \
@@ -155,26 +157,36 @@ class Agent(object):
         self.__dict__.update(locals())
         self.learn_step_counter = 0
 
-        ## The critic and its corresponding target network
-        self.critic   = CriticNetwork( self.name + "_critic", net_dir,
+        ## The twin critics and their corresponding target networks
+        self.critic_1 = CriticNetwork( self.name + "_critic_1", net_dir,
                                        input_dims, n_actions,
                                        C_depth, C_width, active )
-        self.t_critic = CriticNetwork( self.name + "_targ_critic", net_dir,
+        self.critic_2 = CriticNetwork( self.name + "_critic_2", net_dir,
                                        input_dims, n_actions,
                                        C_depth, C_width, active )
-        self.t_critic.load_state_dict( self.critic.state_dict() )
+
+        self.t_critic_1 = CriticNetwork( self.name + "_targ_critic_1", net_dir,
+                                         input_dims, n_actions,
+                                         C_depth, C_width, active )
+        self.t_critic_2 = CriticNetwork( self.name + "_targ_critic_2", net_dir,
+                                         input_dims, n_actions,
+                                         C_depth, C_width, active )
+
+        self.t_critic_1.load_state_dict( self.critic_1.state_dict() )
+        self.t_critic_2.load_state_dict( self.critic_2.state_dict() )
 
         ## The actor and its corresponding target network
-        self.actor   = ActorNetwork( self.name + "_actor", net_dir,
-                                     input_dims, n_actions,
-                                     A_depth, A_width, active, noisy )
+        self.actor = ActorNetwork( self.name + "_actor", net_dir,
+                                   input_dims, n_actions,
+                                   A_depth, A_width, active, noisy )
         self.t_actor = ActorNetwork( self.name + "_targ_actor", net_dir,
                                      input_dims, n_actions,
                                      A_depth, A_width, active, noisy )
         self.t_actor.load_state_dict( self.actor.state_dict() )
 
         ## The gradient descent algorithms and loss function
-        self.C_optimiser = optim.Adam( self.critic.parameters(), lr = C_lr, weight_decay = QL2 )
+        self.C_optimiser_1 = optim.Adam( self.critic_1.parameters(), lr = C_lr, weight_decay = QL2 )
+        self.C_optimiser_2 = optim.Adam( self.critic_2.parameters(), lr = C_lr, weight_decay = QL2 )
         self.A_optimiser = optim.Adam( self.actor.parameters(),  lr = A_lr )
         self.loss_fn = nn.SmoothL1Loss()
 
@@ -194,14 +206,18 @@ class Agent(object):
             exit()
 
     def save_models(self, flag=""):
-        self.critic.save_checkpoint(flag)
-        self.t_critic.save_checkpoint(flag)
+        self.critic_1.save_checkpoint(flag)
+        self.critic_2.save_checkpoint(flag)
+        self.t_critic_1.save_checkpoint(flag)
+        self.t_critic_2.save_checkpoint(flag)
         self.actor.save_checkpoint(flag)
         self.t_actor.save_checkpoint(flag)
 
     def load_models(self, flag=""):
-        self.critic.load_checkpoint(flag)
-        self.t_critic.load_checkpoint(flag)
+        self.critic_1.load_checkpoint(flag)
+        self.critic_2.load_checkpoint(flag)
+        self.t_critic_1.load_checkpoint(flag)
+        self.t_critic_2.load_checkpoint(flag)
         self.actor.load_checkpoint(flag)
         self.t_actor.load_checkpoint(flag)
 
@@ -214,7 +230,10 @@ class Agent(object):
             print("\n\n\nWarning: DDPG only supports soft network updates\n\n\n")
             exit()
 
-        for tp, pp in zip( self.t_critic.parameters(), self.critic.parameters() ):
+        for tp, pp in zip( self.t_critic_1.parameters(), self.critic_1.parameters() ):
+            tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
+
+        for tp, pp in zip( self.t_critic_2.parameters(), self.critic_2.parameters() ):
             tp.data.copy_( self.target_sync * pp.data + ( 1.0 - self.target_sync ) * tp.data )
 
         for tp, pp in zip( self.t_actor.parameters(), self.actor.parameters() ):
@@ -250,12 +269,12 @@ class Agent(object):
         states, actions, rewards, next_states, dones, is_weights, indices = self.memory.sample_memory(self.batch_size)
 
         ## We need to convert all of these arrays to pytorch tensors
-        states      = T.tensor( states,      device = self.critic.device )
-        actions     = T.tensor( actions,     device = self.critic.device )
-        rewards     = T.tensor( rewards,     device = self.critic.device ).reshape(-1, 1)
-        next_states = T.tensor( next_states, device = self.critic.device )
-        dones       = T.tensor( dones,       device = self.critic.device ).reshape(-1, 1)
-        is_weights  = T.tensor( is_weights,  device = self.critic.device )
+        states      = T.tensor( states,      device = self.actor.device )
+        actions     = T.tensor( actions,     device = self.actor.device )
+        rewards     = T.tensor( rewards,     device = self.actor.device ).reshape(-1, 1)
+        next_states = T.tensor( next_states, device = self.actor.device )
+        dones       = T.tensor( dones,       device = self.actor.device ).reshape(-1, 1)
+        is_weights  = T.tensor( is_weights,  device = self.actor.device )
 
         ## To increase the speed of this step we do it without keeping track of gradients
         with T.no_grad():
@@ -263,40 +282,58 @@ class Agent(object):
             ## First we need the optimising actions using the target actor
             next_actions = self.t_actor(next_states)
 
-            ## Now we find the values of those actions using the target critic
-            next_Q_values = self.t_critic( next_states, next_actions )
+            ## We augment this with noise if noisy parameters arent already in use
+            if not self.noisy:
+                noise = T.normal( 0, std=self.smooth_noise, size=next_actions.shape, device=self.actor.device )
+                noise = T.clamp( noise, -self.noise_clip, self.noise_clip )
+                next_actions = T.clamp( next_actions+noise, -1, 1 )
+
+            ## Now we find the values of those actions using both target critics and take the min
+            next_Q_values_1 = self.t_critic_1( next_states, next_actions )
+            next_Q_values_2 = self.t_critic_2( next_states, next_actions )
+            next_Q_values = T.min(next_Q_values_1, next_Q_values_2)
 
             ## Now we can compute the TD targets
             td_target = rewards + ( self.gamma ** self.n_step ) * next_Q_values * (~dones)
             td_target = td_target.detach()
 
-        ## We compute the current Q value estimates using the critic
-        Q_values = self.critic(states, actions)
+        ## We compute the current Q value estimates using the first critic
+        Q_values_1 = self.critic_1(states, actions)
 
-        ### Calculate the TD-Errors to be used in PER and update the replay
+        ## Calculate the TD-Errors using Q1 to be used in PER and update the replay
         if self.PER_on:
-            new_errors = T.abs(Q_values - td_target).detach().cpu().numpy().squeeze()
+            new_errors = T.abs(Q_values_1 - td_target).detach().cpu().numpy().squeeze()
             self.memory.batch_update(indices, new_errors)
 
         ## Update the Q-Function using gradient descent
-        self.C_optimiser.zero_grad()
-        C_loss = self.loss_fn( Q_values, td_target )
+        self.C_optimiser_1.zero_grad()
+        C_loss_1 = self.loss_fn( Q_values_1, td_target )
         if self.PER_on:
-            C_loss = C_loss * is_weights.unsqueeze(1)
-        C_loss = C_loss.mean()
-        C_loss.backward()
-        self.C_optimiser.step()
+            C_loss_1 = C_loss_1 * is_weights.unsqueeze(1)
+        C_loss_1 = C_loss_1.mean()
+        C_loss_1.backward()
+        self.C_optimiser_1.step()
 
-        ## Update the policy by one step of gradient ascent
-        self.A_optimiser.zero_grad()
-        best_actions = self.actor(states)
-        A_loss = -self.critic(states, best_actions).mean()
-        A_loss.backward()
-        self.A_optimiser.step()
+        ## We do the same steps for the second critic but we do not update PER
+        self.C_optimiser_2.zero_grad()
+        Q_values_2 = self.critic_2(states, actions)
+        C_loss_2 = self.loss_fn( Q_values_2, td_target ).mean()
+        C_loss_2.backward()
+        self.C_optimiser_2.step()
 
-        ## Update the target network parameters
-        self.sync_target_networks()
+        ## Only update policy and target networks every so often
+        if self.learn_step_counter % self.delay == 0:
+
+            ## Update the policy by one step of gradient ascent
+            self.A_optimiser.zero_grad()
+            best_actions = self.actor(states)
+            A_loss = -self.critic_1(states, best_actions).mean()
+            A_loss.backward()
+            self.A_optimiser.step()
+
+            ## Update the target network parameters
+            self.sync_target_networks()
 
         self.learn_step_counter += 1
 
-        return C_loss.item()+A_loss.item()
+        return C_loss_1.item()+C_loss_2.item()

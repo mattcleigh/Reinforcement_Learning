@@ -13,7 +13,7 @@ import torch.nn as nn
 
 from Resources import Utils as myUT
 
-from DDPG import Agent
+from TD3 import Agent
 
 def main():
 
@@ -21,11 +21,11 @@ def main():
 
     test_mode = False
     load_prev = False
-    render_on = False
+    render_on = True
     save_every = 10000
 
-    env_name = "LunarLanderContinuous-v2"
-    alg_name = "DDPG"
+    env_name = "BipedalWalker-v3"
+    alg_name = "TD3"
 
     ############################################
 
@@ -43,17 +43,19 @@ def main():
                     gamma = 0.99,
                     input_dims = inp_space, n_actions = act_space,
                     active = nn.PReLU(), grad_clip = 10, QL2 = 1e-2,
-                    noisy = False,
+                    noisy = True,
                     \
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
                     A_lr = 1e-3, A_depth = 2, A_width = 400,
                     \
-                    eps = 2e-1, eps_min = 1e-3, eps_dec = 2e-6,
+                    eps = 1e-1, eps_min = 1e-2, eps_dec = 1e-6,
+                    \
+                    delay = 2, smooth_noise = 0.2, noise_clip = 0.5,
                     \
                     mem_size = 100000,   batch_size = 64,
                     target_sync = 5e-3,  freeze_up = 10000,
                     \
-                    PER_on    = False, n_step  = 1,
+                    PER_on    = True, n_step  = 3,
                     PEReps    = 0.01, PERa     = 0.6,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
                     PERmax    = 1,

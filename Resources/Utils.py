@@ -204,7 +204,7 @@ class Worker:
 
 
 def train_dqn_model( agent, env, render_on, test_mode, save_every,
-                     draw_return, draw_interv, ret_type="" ):
+                     draw_return=False, draw_interv=10, ret_type="" ):
 
     ## For plotting as it learns
     plt.ion()
