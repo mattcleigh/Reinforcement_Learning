@@ -99,16 +99,11 @@ class ActorNetwork(nn.Module):
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), linear_layer(inpt, width) ))
+            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
             layers.append(( "act_{}".format(l_num), activ ))
         layers.append(( "lin_out", linear_layer(width, n_actions) ))
         layers.append(( "act_out", nn.Tanh() ))
         self.main_stream = nn.Sequential(OrderedDict(layers))
-
-        ## The output layer gets special weight initialisation
-        dev = 3e-3
-        nn.init.uniform_(self.main_stream.lin_out.weight.data, -dev, dev )
-        nn.init.uniform_(self.main_stream.lin_out.bias.data,   -dev, dev )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")

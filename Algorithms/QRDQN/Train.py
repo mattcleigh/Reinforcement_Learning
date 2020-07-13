@@ -45,7 +45,7 @@ def main():
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64,
-                    activ = nn.PReLU(), noisy = True,
+                    activ = nn.ReLU(), noisy = True,
                     \
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \

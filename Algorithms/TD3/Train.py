@@ -42,7 +42,7 @@ def main():
                     \
                     gamma = 0.99,
                     input_dims = inp_space, n_actions = act_space,
-                    active = nn.PReLU(), grad_clip = 10, QL2 = 0,
+                    active = nn.ReLU(), grad_clip = 0, QL2 = 0,
                     noisy = False,
                     \
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
@@ -52,10 +52,10 @@ def main():
                     \
                     delay = 2, smooth_noise = 0.2, noise_clip = 0.5,
                     \
-                    mem_size = 100000,   batch_size = 100,
-                    target_sync = 5e-3,  freeze_up = 10000,
+                    mem_size = 1000000,   batch_size = 100,
+                    target_sync = 5e-3,  freeze_up = 5000,
                     \
-                    PER_on    = True, n_step   = 3,
+                    PER_on    = False, n_step   = 1,
                     PEReps    = 0.01, PERa     = 0.6,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
                     PERmax    = 1,

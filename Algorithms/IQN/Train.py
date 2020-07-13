@@ -44,7 +44,7 @@ def main():
                     gamma = 0.99, lr = 1e-3, grad_clip = 10,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 2, width = 512, activ = nn.PReLU(),
+                    depth = 2, width = 512, activ = nn.ReLU(),
                     noisy = True, duel = True,
                     \
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
