@@ -99,7 +99,7 @@ class ActorNetwork(nn.Module):
         layers = []
         for l_num in range(1, depth+1):
             inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "lin_{}".format(l_num), linear_layer(inpt, width) ))
             layers.append(( "act_{}".format(l_num), activ ))
         layers.append(( "lin_out", linear_layer(width, n_actions) ))
         layers.append(( "act_out", nn.Tanh() ))
@@ -301,9 +301,10 @@ class Agent(object):
 
         ## Calculate the TD-Errors using both networks to be used in PER and update the replay
         if self.PER_on:
-            Q_avg = ( Q_1 + Q_2 ) / 2
-            new_errors = T.abs(Q_avg - td_target).detach().cpu().numpy().squeeze()
-            self.memory.batch_update(indices, new_errors)
+            err_1 = T.abs(Q_1 - td_target)
+            err_2 = T.abs(Q_2 - td_target)
+            max_err = T.max(err_1, err_2).detach().cpu().numpy().squeeze()
+            self.memory.batch_update(indices, max_err)
 
         self.learn_step_counter += 1
 

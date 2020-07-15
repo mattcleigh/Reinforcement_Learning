@@ -337,9 +337,9 @@ class N_Step_PER(object):
             ## If the transition lead to a terminal state
             ## We shift the n_step to be shorter
             if don:
-                n_state  = n_s
-                n_done   = don
-                n_reward = rew
+                n_next_state  = n_s
+                n_done        = don
+                n_reward      = rew
 
         return n_state, n_action, n_reward, n_next_state, n_done
 

@@ -217,6 +217,12 @@ def train_dqn_model( agent, env, render_on, test_mode, save_every,
         elif ret_type=="quant":
             vp = myPT.quant_plot()
 
+    ## We check if we are in test mode, which reduces eps and freezup
+    if test_mode:
+        agent.eps = 0
+        agent.eps_min = 0
+        agent.freezup = 0
+
     ## We check if we are in ram mode, which requires state pre-scaling
     ram_mode = False
     if len(env.reset())==128:
