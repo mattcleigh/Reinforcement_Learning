@@ -25,7 +25,7 @@ def main():
     render_on = True
     save_every = 10000
 
-    env_name = "LunarLanderContinuous-v2"
+    env_name = "Walker2DBulletEnv-v0"
     alg_name = "TD3"
 
     ############################################

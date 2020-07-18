@@ -51,7 +51,7 @@ class ActorNetwork(nn.Module):
         output = self.main_stream(state)
 
         ## The output is split into the seperate means and stds components
-        means, log_stds = T.split(output, 2, dim=-1)
+        means, log_stds = T.chunk(output, 2, dim=-1)
 
         ## The model predicts log_stds to ensure that the std's are positive
         stds = log_stds.exp()
@@ -131,7 +131,7 @@ class Agent(object):
         ## If we are using the adjustable temperature configuration
         if self.ent_tune:
             ## The target entropy is set to -|A|
-            self.target_ent = -T.tensor( [n_actions], device=self.actor.device, dtype=T.float32 )
+            self.target_ent = - float( n_actions )
             self.log_ent_coef = T.zeros(1, requires_grad=True, device=self.actor.device )
             self.ent_coef = self.log_ent_coef.exp()
             self.ent_optim = optim.Adam( [self.log_ent_coef], lr=A_lr )
@@ -233,7 +233,7 @@ class Agent(object):
         if self.ent_tune:
             ## We want to increase alpha when the entropy is less than target
             self.ent_optim.zero_grad()
-            ent_loss = - self.log_ent_coef * ( new_entropies + self.target_ent ).detach()
+            ent_loss = self.log_ent_coef * ( new_entropies - self.target_ent ).detach()
             ent_loss = ( ent_loss * is_weights ).mean()
             ent_loss.backward()
             self.ent_optim.step()
