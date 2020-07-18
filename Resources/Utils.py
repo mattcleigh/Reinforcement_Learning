@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../Reinforcement_Learning/'
+home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 import csv
@@ -15,6 +15,7 @@ import torch.nn as nn
 
 from Environments import Car_Env
 from Resources import Plotting as myPT
+from Resources import MemoryMethods as myMM
 
 import torch as T
 
@@ -307,10 +308,54 @@ def train_ac_model(agent, env, render_on, test_mode, save_every):
         if not test_mode:
             loss = agent.train(states, actions, values)
 
-
         if not test_mode:
             if t>=20 and t%20==0:
                 agent.save_models()
 
         print( "Iteration = {}, Loss = {:4.3f}        \r".format( t, loss ), end="" )
         sys.stdout.flush()
+
+def memory_creator( PER_on, n_step, gamma, mem_size,
+                    input_dims, PEReps, PERa,
+                    PERbeta, PERb_inc, PERmax ):
+
+    if PER_on and n_step > 1:
+        return myMM.N_Step_PER( mem_size, input_dims,
+                                eps=PEReps, a=PERa, beta=PERbeta,
+                                beta_inc=PERb_inc, max_priority=PERmax,
+                                n_step=n_step, gamma=gamma )
+
+    elif PER_on:
+        return myMM.PER( mem_size, input_dims,
+                         eps=PEReps, a=PERa, beta=PERbeta,
+                         beta_inc=PERb_inc, max_priority=PERmax )
+
+    elif n_step == 1:
+        return myMM.Experience_Replay( mem_size, input_dims )
+
+    else:
+        print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
+        exit()
+
+
+def cont_memory_creator( PER_on, n_step, gamma, mem_size, n_actions,
+                         input_dims, PEReps, PERa,
+                         PERbeta, PERb_inc, PERmax ):
+
+    if PER_on and n_step > 1:
+        return myMM.Cont_N_Step_PER( mem_size, input_dims, n_actions,
+                                    eps=PEReps, a=PERa, beta=PERbeta,
+                                    beta_inc=PERb_inc, max_priority=PERmax,
+                                    n_step=n_step, gamma=gamma )
+
+    elif PER_on:
+        return myMM.Cont_PER( mem_size, input_dims, n_actions,
+                              eps=PEReps, a=PERa, beta=PERbeta,
+                              beta_inc=PERb_inc, max_priority=PERmax )
+
+    elif n_step == 1:
+        return myMM.Cont_Exp_Replay( mem_size, input_dims, n_actions)
+
+    else:
+        print( "\n\n!!! Cant do n_step learning without PER !!!\n\n" )
+        exit()

@@ -5,6 +5,63 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import OrderedDict
 
+class TwinCriticMLP(nn.Module):
+    """ A couple of simple and configurable multilayer perceptrons.
+        One class contains both critic networks used in TD3
+    """
+    def __init__(self, name, chpt_dir,
+                       input_dims, n_actions,
+                       depth, width, activ ):
+        super(TwinCriticMLP, self).__init__()
+
+        ## Defining the network features
+        self.name       = name
+        self.chpt_dir   = chpt_dir
+        self.chpt_file  = os.path.join(self.chpt_dir, self.name)
+        self.input_dims = input_dims
+        self.n_actions  = n_actions
+
+        ## The layer structure of the first critic
+        layers = []
+        for l_num in range(1, depth+1):
+            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
+            layers.append(( "crit_1_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "crit_1_act_{}".format(l_num), activ ))
+        layers.append(( "crit_1_lin_out", nn.Linear(width, 1) ))
+        self.crit_layers_1 = nn.Sequential(OrderedDict(layers))
+
+        ## The layer structure of the second critic
+        layers = []
+        for l_num in range(1, depth+1):
+            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
+            layers.append(( "crit_2_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+            layers.append(( "crit_2_act_{}".format(l_num), activ ))
+        layers.append(( "crit_2_lin_out", nn.Linear(width, 1) ))
+        self.crit_layers_2 = nn.Sequential(OrderedDict(layers))
+
+        ## Moving the network to the device
+        self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
+        self.to(self.device)
+
+    def forward(self, state, action):
+        state_action = T.cat((state, action), 1 )
+        q1 = self.crit_layers_1(state_action)
+        q2 = self.crit_layers_2(state_action)
+        return q1, q2
+
+    def Q1_only(self, state, action):
+        state_action = T.cat((state, action), 1 )
+        q1 = self.crit_layers_1(state_action)
+        return q1
+
+    def save_checkpoint(self, flag=""):
+        print("... saving critic network checkpoint ..." )
+        T.save(self.state_dict(), self.chpt_file+flag)
+
+    def load_checkpoint(self, flag=""):
+        print("... loading critic network checkpoint ..." )
+        self.load_state_dict(T.load(self.chpt_file+flag))
+
 class ActorCriticMLP(nn.Module):
     """ A simple and configurable multilayer perceptron.
         An actor-critic method usually includes one network each.
