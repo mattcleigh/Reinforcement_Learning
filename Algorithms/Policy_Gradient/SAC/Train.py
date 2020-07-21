@@ -25,7 +25,7 @@ def main():
     render_on = True
     save_every = 10000
 
-    env_name = "Walker2DBulletEnv-v0"
+    env_name = "BipedalWalker-v3"
     alg_name = "SAC"
 
     ############################################
@@ -46,8 +46,8 @@ def main():
                     input_dims = inp_space, n_actions = act_space,
                     active = nn.ReLU(), grad_clip = 0,
                     \
-                    C_lr = 3e-4, C_depth = 2, C_width = 400,
-                    A_lr = 3e-4, A_depth = 2, A_width = 400,
+                    C_lr = 5e-4, C_depth = 2, C_width = 400,
+                    A_lr = 5e-4, A_depth = 2, A_width = 400,
                     \
                     mem_size = 1000000,   batch_size = 100,
                     target_sync = 5e-3,  freeze_up = 5000,

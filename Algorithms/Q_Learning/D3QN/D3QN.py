@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os
@@ -18,8 +17,8 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 class DuelMLP(nn.Module):
-    """ A simple and configurable multilayer perceptron.
-        This is a dueling network and contains seperate streams
+    """ A basic arcitecture used for the D3QN algorithm.
+        A dueling network, containing seperate streams
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
@@ -127,7 +126,6 @@ class Agent(object):
         self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
                                            input_dims, PEReps, PERa,
                                            PERbeta, PERb_inc, PERmax )
-
 
     def choose_action(self, state):
 

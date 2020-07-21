@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os

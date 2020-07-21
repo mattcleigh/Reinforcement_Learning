@@ -22,7 +22,7 @@ def main():
     draw_return = False
     draw_interv = 2
 
-    env_name = "car"
+    env_name = "CartPole-v0"
     alg_name = "D3QN"
 
     ############################################
@@ -41,7 +41,7 @@ def main():
                     name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models/" + alg_name,
                     \
-                    gamma = 0.99, lr = 1e-4, grad_clip = 0,
+                    gamma = 0.99, lr = 1e-3, grad_clip = 0,
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64, activ = nn.ReLU(),
@@ -50,7 +50,7 @@ def main():
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
-                    target_sync = 1e-2,   freeze_up  = 500,
+                    target_sync = 1e-2,   freeze_up  = 1000,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,

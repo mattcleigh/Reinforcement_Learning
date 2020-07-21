@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os
@@ -121,9 +120,10 @@ class Agent(object):
         self.loss_fn = nn.SmoothL1Loss( reduction = 'none' )
 
         ## The agent memory
-        self.memory = myUT.cont_memory_creator( PER_on, n_step, gamma, mem_size, n_actions,
-                                                input_dims, PEReps, PERa,
-                                                PERbeta, PERb_inc, PERmax )
+        self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
+                                           input_dims, PEReps, PERa,
+                                           PERbeta, PERb_inc, PERmax,
+                                           cont=True, n_actions=n_actions )
 
     def save_models(self, flag=""):
         self.critic.save_checkpoint(flag)

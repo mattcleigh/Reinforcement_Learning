@@ -22,7 +22,7 @@ def main():
     draw_return = False
     draw_interv = 20
 
-    env_name = "LunarLander-v2"
+    env_name = "CartPole-v0"
     alg_name = "IQN"
 
     ############################################
@@ -44,20 +44,20 @@ def main():
                     gamma = 0.99, lr = 1e-3, grad_clip = 0,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 2, width = 256, activ = nn.ReLU(),
+                    depth = 3, width = 64, activ = nn.ReLU(),
                     noisy = True, duel = True,
                     \
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
-                    target_sync = 1e-2, freeze_up = 10000,
+                    target_sync = 1e-2, freeze_up = 100,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
                     PERbeta   = 0.4,  PERb_inc = 1e-6,
                     PERmax    = 1,
                     \
-                    n_quantiles = 16
+                    n_quantiles = 8
                     )
 
     if load_prev:

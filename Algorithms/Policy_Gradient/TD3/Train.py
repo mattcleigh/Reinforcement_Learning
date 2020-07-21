@@ -50,7 +50,7 @@ def main():
                     C_lr = 1e-3, C_depth = 2, C_width = 400,
                     A_lr = 1e-3, A_depth = 2, A_width = 400,
                     \
-                    eps = 1e-1, eps_min = 1e-3, eps_dec = 1e-6,
+                    eps = 2e-1, eps_min = 1e-3, eps_dec = 1e-6,
                     \
                     delay = 2, smooth_noise = 0.2, noise_clip = 0.5,
                     \

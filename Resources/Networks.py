@@ -6,8 +6,7 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 class TwinCriticMLP(nn.Module):
-    """ A couple of simple and configurable multilayer perceptrons.
-        One class contains both critic networks used in TD3
+    """ A single class that contains both critic networks used in TD3 and SAC.
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,
@@ -63,7 +62,7 @@ class TwinCriticMLP(nn.Module):
         self.load_state_dict(T.load(self.chpt_file+flag))
 
 class ActorCriticMLP(nn.Module):
-    """ A simple and configurable multilayer perceptron.
+    """ A network system used in A2C and PPO.
         An actor-critic method usually includes one network each.
         However, feature extraction usually requires the same tools.
         Thus, they share the same base layer.
@@ -167,3 +166,27 @@ class FactNoisyLinear(nn.Linear):
             full_bias = self.bias + self.bias_noisy * f_eps_out.t().squeeze()
 
         return F.linear( input, full_weight, full_bias )
+
+
+def mlp_layer_creator( n_inputs, n_outputs, width, depth,
+                       cutsom_size=None, return_list=False,
+                       layer_norm=False, dropout=0.0 ):
+    """ A function used by many of the project algorithms to contruct a
+        simple and configurable MLP stream.
+
+        By default the function returns the full nn sequential model, but if
+        return list is set to true then the output will still be in list form
+        to final layer configuration by the caller.
+
+        The custom size argument is a list for creating streams
+        with varying layer width. If this is set then the width and depth parameters
+        will be ignored.
+    """
+
+
+    layers = []
+    for l_num in range(1, depth+1):
+        inpt = (n_actions+input_dims[0]) if l_num == 1 else width
+        layers.append(( "crit_1_lin_{}".format(l_num), nn.Linear(inpt, width) ))
+        layers.append(( "crit_1_act_{}".format(l_num), activ ))
+    layers.append(( "crit_1_lin_out", nn.Linear(width, 1) ))

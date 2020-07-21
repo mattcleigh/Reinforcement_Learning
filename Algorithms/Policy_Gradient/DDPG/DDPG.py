@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os
@@ -17,8 +16,8 @@ import torch.nn as nn
 import torch.optim as optim
 
 class CriticNetwork(nn.Module):
-    """ A simple and configurable multilayer perceptron.
-        Actions are embedded into network after first layer.
+    """ A network for estimating the value of a continuous action in DDPG.
+        Actions are only embedded into network after first layer.
     """
     def __init__(self, name, chpt_dir,
                        input_dims, n_actions,

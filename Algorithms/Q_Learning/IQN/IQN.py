@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os
@@ -18,9 +17,8 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 class IQNDuelMLP(nn.Module):
-    """ A simple and configurable multilayer perceptron.
-        This is a distributional arcitecture for IQN. So it is broken into
-        a base_stream, a tau embedding stream, and a final stream.
+    """ A distributional arcitecture for IQN.
+        It is broken into a base_stream, a tau embedding stream, and a final stream.
         The final stream has a duelling arcitecture and can be equipped with noisy layers.
     """
     def __init__(self, name, chpt_dir,
@@ -171,7 +169,9 @@ class Agent(object):
                                       noisy, duel, n_quantiles )
         self.target_net.load_state_dict( self.policy_net.state_dict() )
 
-        ## The gradient descent algorithm used to train the policy network
+        ## The gradient descent algorithm used to train the policy network.
+        ## The lambda function is used as we need to broadcast the cost which
+        ## the built in pytorch method does not like to do without a fuss
         self.optimiser = optim.Adam( self.policy_net.parameters(), lr = lr )
         self.huber_fn  = lambda x: T.where( x.abs() < 1, 0.5 * x.pow(2), (x.abs() - 0.5) )
 
@@ -179,7 +179,6 @@ class Agent(object):
         self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
                                            input_dims, PEReps, PERa,
                                            PERbeta, PERb_inc, PERmax )
-
 
     def choose_action(self, state):
 
@@ -205,11 +204,9 @@ class Agent(object):
 
         return action, act_dist
 
-
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
-
 
     def sync_target_network(self):
 
@@ -224,16 +221,13 @@ class Agent(object):
             if self.learn_step_counter % self.target_sync == 0:
                 self.target_net.load_state_dict( self.policy_net.state_dict() )
 
-
     def save_models(self, flag=""):
         self.policy_net.save_checkpoint(flag)
         self.target_net.save_checkpoint(flag)
 
-
     def load_models(self, flag=""):
         self.policy_net.load_checkpoint(flag)
         self.target_net.load_checkpoint(flag)
-
 
     def train(self):
 

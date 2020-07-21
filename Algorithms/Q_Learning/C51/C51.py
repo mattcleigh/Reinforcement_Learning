@@ -3,7 +3,6 @@ home_env = '../../../../Reinforcement_Learning/'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
-from Resources import MemoryMethods as myMM
 from Resources import Utils as myUT
 
 import os
@@ -18,9 +17,8 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 class C51DuelMLP(nn.Module):
-    """ A simple and configurable multilayer perceptron.
-        This is a distributional arcitecture for the C51 algoritm.
-        This is a dueling network and contains seperate streams
+    """ A distributional arcitecture for the C51 algoritm.
+        A dueling network, containing seperate streams
         for value and advantage evaluation.
         The seperate streams can be equipped with noisy layers.
     """
@@ -144,7 +142,7 @@ class Agent(object):
         ## The gradient descent algorithm used to train the policy network
         self.optimiser = optim.Adam( self.policy_net.parameters(), lr = lr )
 
-        ## The agent memory 
+        ## The agent memory
         self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
                                            input_dims, PEReps, PERa,
                                            PERbeta, PERb_inc, PERmax )
@@ -173,11 +171,9 @@ class Agent(object):
 
         return action, act_dist
 
-
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
-
 
     def sync_target_network(self):
 
@@ -192,16 +188,13 @@ class Agent(object):
             if self.learn_step_counter % self.target_sync == 0:
                 self.target_net.load_state_dict( self.policy_net.state_dict() )
 
-
     def save_models(self, flag=""):
         self.policy_net.save_checkpoint(flag)
         self.target_net.save_checkpoint(flag)
 
-
     def load_models(self, flag=""):
         self.policy_net.load_checkpoint(flag)
         self.target_net.load_checkpoint(flag)
-
 
     def train(self):
 
