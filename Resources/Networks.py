@@ -20,23 +20,10 @@ class TwinCriticMLP(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        ## The layer structure of the first critic
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
-            layers.append(( "crit_1_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "crit_1_act_{}".format(l_num), activ ))
-        layers.append(( "crit_1_lin_out", nn.Linear(width, 1) ))
-        self.crit_layers_1 = nn.Sequential(OrderedDict(layers))
-
-        ## The layer structure of the second critic
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = (n_actions+input_dims[0]) if l_num == 1 else width
-            layers.append(( "crit_2_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "crit_2_act_{}".format(l_num), activ ))
-        layers.append(( "crit_2_lin_out", nn.Linear(width, 1) ))
-        self.crit_layers_2 = nn.Sequential(OrderedDict(layers))
+        ## The layer structure of the two critics
+        tot_inpt = n_actions + input_dims[0]
+        self.crit_layers_1 = mlp_creator( "crit_1", n_in=tot_inpt, n_out=1, d=depth, w=width, act_h=activ )
+        self.crit_layers_2 = mlp_creator( "crit_2", n_in=tot_inpt, n_out=1, d=depth, w=width, act_h=activ )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -79,28 +66,12 @@ class ActorCriticMLP(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        ## Defining the base (shared) layer structure
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "base_act_{}".format(l_num), activ ))
-        self.base_stream = nn.Sequential(OrderedDict(layers))
-
-        ## Defining the actor network, returns the policy (softmax)
-        self.actor_stream = nn.Sequential(OrderedDict([
-            ( "actor_lin_1",   nn.Linear(width, width) ),
-            ( "actor_act_1",   activ ),
-            ( "actor_lin_out", nn.Linear(width, n_actions) ),
-            ( "actor_act_out", nn.Softmax(dim=-1) ),
-        ]))
-
-        ## Defining the critic network, returns the state value function
-        self.critic_stream = nn.Sequential(OrderedDict([
-            ( "critic_lin_1",   nn.Linear(width, width) ),
-            ( "critic_act_1",   activ ),
-            ( "critic_lin_out", nn.Linear(width, 1) ),
-        ]))
+        ## Defining the base (shared) layer structure,
+        ## the actor network, returning the policy using a softmax function
+        ## and the critic network, which returns the state value function V
+        self.base_stream = mlp_creator( "base", n_in=input_dims[0], w=width, d=depth, act_h=activ )
+        self.actor_stream = mlp_creator( "actor", n_in=width, n_out=n_actions, w=width, act_h=activ, act_o=nn.Softmax(dim=-1) )
+        self.critic_stream = mlp_creator( "critic", n_in=width, n_out=1, w=width, act_h=activ )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -168,25 +139,54 @@ class FactNoisyLinear(nn.Linear):
         return F.linear( input, full_weight, full_bias )
 
 
-def mlp_layer_creator( n_inputs, n_outputs, width, depth,
-                       cutsom_size=None, return_list=False,
-                       layer_norm=False, dropout=0.0 ):
+def mlp_creator( name, n_in=1, n_out=None, d=1, w=256,
+                       act_h=nn.ReLU(), act_o=None, nsy=False, l_nrm=False,
+                       custom_size=None, return_list=False ):
     """ A function used by many of the project algorithms to contruct a
-        simple and configurable MLP stream.
+        simple and configurable MLP.
 
         By default the function returns the full nn sequential model, but if
-        return list is set to true then the output will still be in list form
-        to final layer configuration by the caller.
+        return_list is set to true then the output will still be in list form
+        to allow final layer configuration by the caller.
 
-        The custom size argument is a list for creating streams
-        with varying layer width. If this is set then the width and depth parameters
+        The custom_size argument is a list for creating streams with varying
+        layer width. If this is set then the width and depth parameters
         will be ignored.
     """
-
-
     layers = []
-    for l_num in range(1, depth+1):
-        inpt = (n_actions+input_dims[0]) if l_num == 1 else width
-        layers.append(( "crit_1_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-        layers.append(( "crit_1_act_{}".format(l_num), activ ))
-    layers.append(( "crit_1_lin_out", nn.Linear(width, 1) ))
+    widths = []
+
+    ## Generating an array to use as the widths
+    widths.append( n_in )
+    if custom_size is not None:
+        d = len( custom_size )
+        widths += custom_size
+    else:
+        widths += d*[w]
+
+    # Checking if noisy layers will be used
+    if nsy:
+        linear_layer = FactNoisyLinear
+    else:
+        linear_layer = nn.Linear
+
+    ## Creating the "hidden" layers in the stream
+    for l in range(1, d+1):
+        layers.append(( "{}_lin_{}".format(name, l), linear_layer(widths[l-1], widths[l]) ))
+        layers.append(( "{}_act_{}".format(name, l), act_h ))
+        if l_nrm:
+            layers.append(( "{}_nrm_{}".format(name, l), nn.LayerNorm(widths[l]) ))
+
+    ## Creating the "output" layer of the stream if applicable which is sometimes
+    ## Not the case when creating base streams in larger arcitectures
+    if n_out is not None:
+        layers.append(( "{}_lin_out".format(name), linear_layer(widths[-1], n_out) ))
+        if act_o is not None:
+            layers.append(( "{}_act_out".format(name), act_o ))
+
+    ## Return the list of features or...
+    if return_list:
+        return layers
+
+    ## ... convert the list to an nn, then return
+    return nn.Sequential(OrderedDict(layers))

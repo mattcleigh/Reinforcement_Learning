@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../../Reinforcement_Learning/'
+home_env = '../../../'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
@@ -16,14 +16,13 @@ import torch.nn as nn
 import torch.optim as optim
 
 class ActorNetwork(nn.Module):
-    """ A simple and configurable multilayer perceptron.
+    """ The actor network for the TD3 algorithm.
         Tanh applied on final layer to clip the output.
         Scaling can then happen in post depending on env.
     """
-    def __init__(self, name, chpt_dir,
-                       input_dims, n_actions,
-                       depth, width, activ,
-                       noisy ):
+    def __init__( self, name, chpt_dir,
+                        input_dims, n_actions,
+                        depth, width, activ ):
         super(ActorNetwork, self).__init__()
 
         ## Defining the network features
@@ -33,20 +32,7 @@ class ActorNetwork(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        # Checking if noisy layers will be used only on output
-        if noisy:
-            linear_layer = myNN.FactNoisyLinear
-        else:
-            linear_layer = nn.Linear
-
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), linear_layer(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
-        layers.append(( "lin_out", linear_layer(width, n_actions) ))
-        layers.append(( "act_out", nn.Tanh() ))
-        self.main_stream = nn.Sequential(OrderedDict(layers))
+        self.main_stream = myNN.mlp_creator( "actor", n_in=input_dims[0], n_out=n_actions, d=depth, w=width, act_h=activ, act_o=nn.Tanh() )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -73,7 +59,6 @@ class Agent(object):
                  gamma,
                  input_dims, n_actions,
                  active, grad_clip, QL2,
-                 noisy,
                  \
                  C_lr, C_depth, C_width,
                  A_lr, A_depth, A_width,
@@ -108,10 +93,10 @@ class Agent(object):
         ## The actor and its corresponding target network
         self.actor = ActorNetwork( self.name + "_actor", net_dir,
                                    input_dims, n_actions,
-                                   A_depth, A_width, active, noisy )
+                                   A_depth, A_width, active )
         self.t_actor = ActorNetwork( self.name + "_targ_actor", net_dir,
                                      input_dims, n_actions,
-                                     A_depth, A_width, active, noisy )
+                                     A_depth, A_width, active )
         self.t_actor.load_state_dict( self.actor.state_dict() )
 
         ## The gradient descent algorithms and loss function
@@ -163,12 +148,9 @@ class Agent(object):
             with T.no_grad():
                 state_tensor = T.tensor( state, device=self.actor.device, dtype=T.float32 )
                 action = self.actor(state_tensor).cpu().numpy()
-
-            ## If there are no noisy layers then we manually insert noise
-            if not self.noisy:
-                noise    = rd.uniform( -self.eps, self.eps, self.n_actions )
-                self.eps = max( self.eps - self.eps_dec, self.eps_min )
-                action   = np.clip( action + noise, -1, 1 )
+            noise    = rd.uniform( -self.eps, self.eps, self.n_actions )
+            self.eps = max( self.eps - self.eps_dec, self.eps_min )
+            action   = np.clip( action + noise, -1, 1 )
 
         return action, 0
 
@@ -195,11 +177,10 @@ class Agent(object):
             ## First we need the optimising actions using the target actor
             next_actions = self.t_actor(next_states)
 
-            ## We augment this with noise if noisy parameters arent already in use
-            if not self.noisy:
-                noise = T.normal( 0, std=self.smooth_noise, size=next_actions.shape, device=self.actor.device )
-                noise = T.clamp( noise, -self.noise_clip, self.noise_clip )
-                next_actions = T.clamp( next_actions+noise, -1, 1 )
+            ## We augment this with noise
+            noise = T.normal( 0, std=self.smooth_noise, size=next_actions.shape, device=self.actor.device )
+            noise = T.clamp( noise, -self.noise_clip, self.noise_clip )
+            next_actions = T.clamp( next_actions+noise, -1, 1 )
 
             ## Now we find the values of those actions using both target critics and take the min
             next_Q_1, next_Q_2 = self.t_critic( next_states, next_actions )

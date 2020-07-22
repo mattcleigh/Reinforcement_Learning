@@ -35,40 +35,16 @@ class DuelMLP(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        # Checking if noisy layers will be used
-        if noisy:
-            linear_layer = myNN.FactNoisyLinear
-        else:
-            linear_layer = nn.Linear
-
-        ## Defining the base layer structure
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "base_act_{}".format(l_num), activ ))
-        self.base_stream = nn.Sequential(OrderedDict(layers))
-
-        ## Defining the dueling network arcitecture
-        self.V_stream = nn.Sequential(OrderedDict([
-            ( "V_lin_1",   linear_layer(width, width) ),
-            ( "V_act_1",   activ ),
-            ( "V_lin_out", linear_layer(width, 1) ),
-        ]))
-        self.A_stream = nn.Sequential(OrderedDict([
-            ( "A_lin_1",   linear_layer(width, width) ),
-            ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width, n_actions) ),
-        ]))
+        ## Defining the base and dueling layer structures
+        self.base_stream = myNN.mlp_creator( "base", n_in=input_dims[0], d=depth, w=width, act_h=activ )
+        self.V_stream = myNN.mlp_creator( "V", n_in=width, n_out=1, w=width, act_h=activ, nsy=noisy )
+        self.A_stream = myNN.mlp_creator( "A", n_in=width, n_out=n_actions, w=width, act_h=activ, nsy=noisy )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
     def forward(self, state):
-        ## This is a standard network for the Q evaluation
-        ## So the output is a A length vector
-            ## Each element is the expected return for each action
         shared_out = self.base_stream(state)
         V = self.V_stream(shared_out)
         A = self.A_stream(shared_out)
@@ -150,11 +126,9 @@ class Agent(object):
 
         return action, act_value
 
-
     def store_transition(self, state, action, reward, next_state, done):
         ## Interface to memory, so no outside class directly calls it
         self.memory.store_transition(state, action, reward, next_state, done)
-
 
     def sync_target_network(self):
 
@@ -169,16 +143,13 @@ class Agent(object):
             if self.learn_step_counter % self.target_sync == 0:
                 self.target_net.load_state_dict( self.policy_net.state_dict() )
 
-
     def save_models(self, flag=""):
         self.policy_net.save_checkpoint(flag)
         self.target_net.save_checkpoint(flag)
 
-
     def load_models(self, flag=""):
         self.policy_net.load_checkpoint(flag)
         self.target_net.load_checkpoint(flag)
-
 
     def train(self):
 

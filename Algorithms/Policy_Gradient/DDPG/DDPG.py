@@ -32,20 +32,10 @@ class CriticNetwork(nn.Module):
         self.n_actions  = n_actions
 
         ## Defining the state input layer which has a normalisation
-        self.state_layer  = nn.Sequential(OrderedDict([
-            ( "base_lin_1", nn.Linear(input_dims[0], width) ),
-            ( "base_act_1", activ ),
-            ( "base_nrm_1", nn.LayerNorm(width) ),
-        ]))
+        self.state_layer  = myNN.mlp_creator("base", n_in=input_dims[0], w=width, act_h=activ, l_nrm=True)
 
         ## The actions are included from layer 2 onwards
-        layers = []
-        for l_num in range(2, depth+1):
-            inpt = (n_actions+width) if l_num == 2 else width
-            layers.append(( "comb_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "comb_act_{}".format(l_num), activ ))
-        layers.append(( "comb_lin_out", nn.Linear(width, 1) ))
-        self.comb_stream = nn.Sequential(OrderedDict(layers))
+        self.comb_stream = myNN.mlp_creator( "comb", n_in=n_actions+width, n_out=1, w=width, act_h=activ )
 
         ## The output layer gets special weight initialisation
         dev = 3e-3
@@ -89,26 +79,13 @@ class ActorNetwork(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        # Checking if noisy layers will be used only on output
-        if noisy:
-            linear_layer = myNN.FactNoisyLinear
-        else:
-            linear_layer = nn.Linear
-
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), linear_layer(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
-            layers.append(( "nrm_{}".format(l_num), nn.LayerNorm(width) ))
-        layers.append(( "lin_out", linear_layer(width, n_actions) ))
-        layers.append(( "act_out", nn.Tanh() ))
-        self.main_stream = nn.Sequential(OrderedDict(layers))
+        self.main_stream = myNN.mlp_creator( "actor", n_in = input_dims[0], n_out=n_actions, d=depth, w=width,
+                                              act_h=activ, act_o=nn.Tanh(), nsy=noisy, l_nrm=True )
 
         ## The output layer gets special weight initialisation
         dev = 3e-3
-        nn.init.uniform_(self.main_stream.lin_out.weight.data, -dev, dev )
-        nn.init.uniform_(self.main_stream.lin_out.bias.data,   -dev, dev )
+        nn.init.uniform_(self.main_stream.actor_lin_out.weight.data, -dev, dev )
+        nn.init.uniform_(self.main_stream.actor_lin_out.bias.data,   -dev, dev )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -182,7 +159,8 @@ class Agent(object):
         ## The agent memory
         self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
                                            input_dims, PEReps, PERa,
-                                           PERbeta, PERb_inc, PERmax )
+                                           PERbeta, PERb_inc, PERmax,
+                                           cont=True, n_actions=n_actions )
 
     def save_models(self, flag=""):
         self.critic.save_checkpoint(flag)

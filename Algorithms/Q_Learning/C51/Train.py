@@ -22,7 +22,7 @@ def main():
     draw_return = False
     draw_interv = 10
 
-    env_name = "LunarLander-v2"
+    env_name = "CartPole-v1"
     alg_name = "C51"
 
     ############################################
@@ -41,7 +41,7 @@ def main():
                     name    = env_name + "_" + alg_name,
                     net_dir = home_env + "Saved_Models/" + alg_name,
                     \
-                    gamma = 0.99, lr = 1e-4, grad_clip = 10,
+                    gamma = 0.99, lr = 1e-3, grad_clip = 10,
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64,
@@ -50,14 +50,14 @@ def main():
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 500000, batch_size = 64,
-                    target_sync = 1e-3,   freeze_up  = 10000,
+                    target_sync = 1e-2,   freeze_up  = 500,
                     \
                     PER_on    = True,  n_step   = 3,
                     PEReps    = 0.01,  PERa     = 0.5,
                     PERbeta   = 0.4,   PERb_inc = 1e-7,
                     PERmax    = 1,
                     \
-                    n_atoms = 51, sup_range = [-150, 150]
+                    n_atoms = 51, sup_range = [0, 150]
                     )
 
     if load_prev:

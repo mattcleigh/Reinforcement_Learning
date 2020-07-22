@@ -5,6 +5,23 @@ def det(a, b):
     return a[0] * b[1] - a[1] * b[0]
 
 
+def minimum_distance(a, b, p):
+    """ Return minimum distance between line segment ab and point p
+    """
+
+    a = np.array(a)
+    b = np.array(b)
+    p = np.array(p)
+
+    t = np.dot( p - a, b - a ) / np.linalg.norm( a - b )**2
+    t = np.clip( t, 0, 1 )
+    proj = a + t * ( b - a )
+
+    return np.linalg.norm(p-proj)
+
+
+
+
 def find_intersection(a, b, c, d):
 
     xdiff = (a[0] - b[0], c[0] - d[0])
@@ -29,7 +46,7 @@ def find_intersection(a, b, c, d):
     return False, 0
 
 
-def rotate_2d_vec( vector, angle):
+def rotate_2d_vec(vector, angle):
     """ Use numpy to create a rotation matrix then we take the dot product
     """
     c, s    = np.cos(angle), np.sin(angle)

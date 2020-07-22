@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../../Reinforcement_Learning/'
+home_env = '../'
 sys.path.append(home_env)
 
 import csv
@@ -33,7 +33,10 @@ class Vectorised_Worker:
         self.gamma = gamma
 
         ## The list of environments, current states, and scores
-        self.envs = [ gym.make(env_name) for _ in range(n_workers) ]
+        if env_name == "car":
+            self.envs = [ Car_Env.MainEnv( rand_start = True ) for _ in range(n_workers) ]
+        else:
+            self.envs = [ gym.make(env_name) for _ in range(n_workers) ]
         self.states = [ env.reset() for env in self.envs ]
         self.scores = np.zeros(n_workers)
 

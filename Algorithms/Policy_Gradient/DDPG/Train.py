@@ -21,7 +21,7 @@ def main():
 
     test_mode = False
     load_prev = False
-    render_on = False
+    render_on = True
     save_every = 10000
 
     env_name = "LunarLanderContinuous-v2"
@@ -51,7 +51,7 @@ def main():
                     eps = 2e-1, eps_min = 1e-3, eps_dec = 2e-6,
                     \
                     mem_size = 100000,   batch_size = 64,
-                    target_sync = 5e-3,  freeze_up = 10000,
+                    target_sync = 5e-3,  freeze_up = 100,
                     \
                     PER_on    = False, n_step  = 1,
                     PEReps    = 0.01, PERa     = 0.6,

@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../../Reinforcement_Learning/'
+home_env = '../../../'
 sys.path.append(home_env)
 
 from Resources import Networks as myNN
@@ -16,13 +16,13 @@ import torch.nn as nn
 import torch.optim as optim
 
 class ActorNetwork(nn.Module):
-    """ A simple and configurable multilayer perceptron.
+    """ The actor network for the SAC algorithm.
         Tanh applied on final layer to clip the output.
         Scaling can then happen in post depending on env.
     """
-    def __init__(self, name, chpt_dir,
-                       input_dims, n_actions,
-                       depth, width, activ):
+    def __init__( self, name, chpt_dir,
+                        input_dims, n_actions,
+                        depth, width, activ ):
         super(ActorNetwork, self).__init__()
 
         ## Defining the network features
@@ -32,13 +32,7 @@ class ActorNetwork(nn.Module):
         self.input_dims = input_dims
         self.n_actions  = n_actions
 
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "act_{}".format(l_num), activ ))
-        layers.append(( "lin_out", nn.Linear(width, 2*n_actions) ))
-        self.main_stream = nn.Sequential(OrderedDict(layers))
+        self.main_stream = myNN.mlp_creator( "actor", n_in=input_dims[0], n_out=2*n_actions, d=depth, w=width, act_h=activ )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")
@@ -136,9 +130,10 @@ class Agent(object):
             self.ent_optim = optim.Adam( [self.log_ent_coef], lr=A_lr )
 
         ## The agent memory
-        self.memory = myUT.cont_memory_creator( PER_on, n_step, gamma, mem_size, n_actions,
-                                                input_dims, PEReps, PERa,
-                                                PERbeta, PERb_inc, PERmax )
+        self.memory = myUT.memory_creator( PER_on, n_step, gamma, mem_size,
+                                           input_dims, PEReps, PERa,
+                                           PERbeta, PERb_inc, PERmax,
+                                           cont=True, n_actions=n_actions )
 
     def save_models(self, flag=""):
         self.critic.save_checkpoint(flag)

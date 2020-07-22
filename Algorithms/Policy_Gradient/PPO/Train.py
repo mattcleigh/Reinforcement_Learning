@@ -20,13 +20,13 @@ def main():
 
     ################ USER INPUT ################
 
-    test_mode = True
-    load_prev = True
+    test_mode = False
+    load_prev = False
     render_on = True
 
     save_every = 10
 
-    env_name = "LunarLander-v2"
+    env_name = "car"
     alg_name = "PPO"
 
     ############################################
@@ -45,10 +45,10 @@ def main():
                     name    = alg_name + "_" + env_name,
                     net_dir = home_env + "Saved_Models/" + alg_name,
                     \
-                    gamma = 0.99, lr = 1e-4, grad_clip = 0,
+                    gamma = 0.99, lr = 1e-3, grad_clip = 10,
                     \
                     input_dims = inp_space, n_actions = act_space,
-                    depth = 3, width = 64, activ = nn.ReLU(),
+                    depth = 3, width = 128, activ = nn.ReLU(),
                     \
                     eps_clip = 0.2, pol_sync = 30,
                     \

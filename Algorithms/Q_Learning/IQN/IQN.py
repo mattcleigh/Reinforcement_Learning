@@ -41,39 +41,17 @@ class IQNDuelMLP(nn.Module):
         self.quant_emb_dim = 64
         self.taus = None
 
-        # Checking if noisy layers will be used
-        if noisy:
-            linear_layer = myNN.FactNoisyLinear
-        else:
-            linear_layer = nn.Linear
-
         ## Defining the base layer structure
-        layers = []
-        for l_num in range(1, depth+1):
-            inpt = input_dims[0] if l_num == 1 else width
-            layers.append(( "base_lin_{}".format(l_num), nn.Linear(inpt, width) ))
-            layers.append(( "base_act_{}".format(l_num), activ ))
-        self.base_stream = nn.Sequential(OrderedDict(layers))
+        self.base_stream = myNN.mlp_creator( "base", n_in=input_dims[0], d=depth, w=width, act_h=activ )
 
         ## Defining the tau embedding stream, only one linear layer
-        self.embed_stream = nn.Sequential(OrderedDict([
-            ( "em_lin_1",   nn.Linear(self.quant_emb_dim, width) ),
-            ( "em_act_1",   activ ),
-        ]))
+        self.embed_stream = myNN.mlp_creator( "em", n_in=self.quant_emb_dim, w=width, act_h=activ )
 
         ## Defining the dueling network arcitecture
-        self.A_stream = nn.Sequential(OrderedDict([
-            ( "A_lin_1",   linear_layer(width, width) ),
-            ( "A_act_1",   activ ),
-            ( "A_lin_out", linear_layer(width, n_actions) ),
-        ]))
+        self.A_stream = myNN.mlp_creator( "A", n_in=width, n_out=n_actions, w=width, act_h=activ, nsy=noisy )
 
         if duel:
-            self.V_stream = nn.Sequential(OrderedDict([
-                ( "V_lin_1",   linear_layer(width, width) ),
-                ( "V_act_1",   activ ),
-                ( "V_lin_out", linear_layer(width, 1) ),
-            ]))
+            self.V_stream = myNN.mlp_creator( "V", n_in=width, n_out=1, w=width, act_h=activ, nsy=noisy )
 
         ## Moving the network to the device
         self.device = T.device("cuda" if T.cuda.is_available() else "cpu")

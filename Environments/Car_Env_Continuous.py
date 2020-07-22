@@ -14,17 +14,13 @@ import pyglet
 from pyglet.gl import *
 from pyglet.window import key
 
-class Discrete:
-    def __init__(self, size):
-        self.n = size
-
 class MainEnv:
     """ The environment of the race track
     """
     def __init__(self, rand_start = False ):
         self.viewer = None
         self.rand_start = rand_start
-        self.action_space = Discrete(12)
+        self.action_space = np.zeros(3)
 
         ## The constants defining physics of the model
         self.time       = 0
@@ -295,34 +291,15 @@ class MainEnv:
             return (self.tracf-self.tracs)/self.slip_speed * speed + self.tracs
 
 
-    def decode_action(self, action):
-        """ Decoding the action based on a scaler between 0 and 8
-        """
-
-        assert(action in range(12))
-        if   action == 0:  return  1, 0,  1
-        elif action == 1:  return  1, 0,  0
-        elif action == 2:  return  1, 0, -1
-        elif action == 3:  return  0, 0,  1
-        elif action == 4:  return  0, 0,  0
-        elif action == 5:  return  0, 0, -1
-        elif action == 6:  return  1, 1,  1
-        elif action == 7:  return  1, 1,  0
-        elif action == 8:  return  1, 1, -1
-        elif action == 9:  return  0, 1,  1
-        elif action == 10: return  0, 1,  0
-        elif action == 11: return  0, 1, -1
-
-
     def step(self, action):
         """ Moving ahead by one timestep using physics,
             then returning the new state
         """
 
-        ## First we get the engine force and the turning angle from the user/network input
-        self.fwd_state, self.brk_state, self.trn_state = self.decode_action(action)
-        engine_mag = self.fwd_state * self.engine_max
-        brake_mag  = self.brk_state * self.brake_max
+        ## First we get the engine force and the turning angle from the network input
+        self.fwd_state, self.brk_state, self.trn_state = action
+        engine_mag = max( self.fwd_state * self.engine_max, 0 )
+        brake_mag  = max( self.brk_state * self.brake_max, 0 )
         turn_angle = self.trn_state * self.turn_max
 
         ## Then we calculate the new positions of the wheels
@@ -484,44 +461,6 @@ class CarGameWindow(pyglet.window.Window):
             glVertex2f( *end )
         glEnd()
 
-    def draw_buttons(self):
-        button_size = 50
-        space = 10
-        start_x = 500
-        start_y = 300
-
-
-        A_label = pyglet.text.Label('A',
-                          font_size=36,
-                          x=start_x+button_size/2, y=start_y+button_size/2,
-                          anchor_x='center', anchor_y='center')
-        start_x += button_size + space
-        W_label = pyglet.text.Label('W',
-                          font_size=36,
-                          x=start_x+button_size/2, y=start_y+button_size/2,
-                          anchor_x='center', anchor_y='center')
-        start_x += button_size + space
-        D_label = pyglet.text.Label('D',
-                          font_size=36,
-                          x=start_x+button_size/2, y=start_y+button_size/2,
-                          anchor_x='center', anchor_y='center')
-        start_x -= button_size + space
-        start_y -= button_size + space
-        B_label = pyglet.text.Label('B',
-                          font_size=36,
-                          x=start_x+button_size/2, y=start_y+button_size/2,
-                          anchor_x='center', anchor_y='center')
-
-        W_label.color = (0, 0, 255, 255) if self.env.fwd_state else (200, 200, 200, 255)
-        A_label.color = (0, 0, 255, 255) if self.env.trn_state==+1 else (200, 200, 200, 255)
-        D_label.color = (0, 0, 255, 255) if self.env.trn_state==-1 else (200, 200, 200, 255)
-        B_label.color = (0, 0, 255, 255) if self.env.brk_state else (200, 200, 200, 255)
-
-        A_label.draw()
-        W_label.draw()
-        D_label.draw()
-        B_label.draw()
-
     def on_draw(self):
         """ Creating the new screen based on the new positions
         """
@@ -533,7 +472,6 @@ class CarGameWindow(pyglet.window.Window):
         self.draw_car()
         self.draw_gates()
         self.draw_vision()
-        self.draw_buttons()
         # self.draw_rays()
 
 

@@ -129,6 +129,7 @@ class Agent(object):
 
             ## We do a single update step using the sum of losses (equivalent to two steps)
             loss = actor_loss + ( self.vf_coef * critic_loss ) - ( self.ent_coef * entropy )
+            loss = loss.mean()
             loss.backward()
 
             ## We might want to clip the gradient before performing SGD

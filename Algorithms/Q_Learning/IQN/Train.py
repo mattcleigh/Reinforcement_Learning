@@ -45,12 +45,12 @@ def main():
                     \
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 64, activ = nn.ReLU(),
-                    noisy = True, duel = True,
+                    noisy = True, duel = False,
                     \
                     eps = 1.0, eps_min = 0.01, eps_dec = 5e-5,
                     \
                     mem_size    = 100000, batch_size = 64,
-                    target_sync = 1e-2, freeze_up = 100,
+                    target_sync = 100, freeze_up = 500,
                     \
                     PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.5,
