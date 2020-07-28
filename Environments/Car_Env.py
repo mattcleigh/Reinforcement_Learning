@@ -39,8 +39,8 @@ class MainEnv:
         self.engine_max = 1.0
         self.brake_max  = 0.3
 
-        self.fric_coef   = 0.01
-        self.drag_coef   = 0.005
+        self.fric_coef   = 0.02
+        self.drag_coef   = 0.01
 
         self.slip_speed = 11
         self.tracs      = 0.3
@@ -366,7 +366,7 @@ class MainEnv:
         track_hit = self.does_car_touch_track()
 
         ## We then calculate the reward of the new state
-        reward = 0
+        reward = -0.01
         done = False
         if gate_hit:
             reward = 1.0

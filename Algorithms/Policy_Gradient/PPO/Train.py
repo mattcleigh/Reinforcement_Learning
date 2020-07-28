@@ -50,10 +50,10 @@ def main():
                     input_dims = inp_space, n_actions = act_space,
                     depth = 3, width = 128, activ = nn.ReLU(),
                     \
-                    eps_clip = 0.2, pol_sync = 30,
+                    eps_clip = 0.2, pol_sync = 50,
                     \
                     env_name = env_name,
-                    n_workers = 16, n_frames = 256,
+                    n_workers = 4, n_frames = 512,
                     vf_coef = 0.1, ent_coef = 0.01,
                     )
 

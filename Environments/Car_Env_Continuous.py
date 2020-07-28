@@ -35,8 +35,8 @@ class MainEnv:
         self.engine_max = 1.0
         self.brake_max  = 0.3
 
-        self.fric_coef   = 0.01
-        self.drag_coef   = 0.005
+        self.fric_coef   = 0.02
+        self.drag_coef   = 0.01
 
         self.slip_speed = 11
         self.tracs      = 0.3
@@ -343,7 +343,7 @@ class MainEnv:
         track_hit = self.does_car_touch_track()
 
         ## We then calculate the reward of the new state
-        reward = 0
+        reward = -0.01
         done = False
         if gate_hit:
             reward = 1.0
@@ -410,14 +410,14 @@ class CarGameWindow(pyglet.window.Window):
     def draw_gates(self):
         gate_pxls = self.scale * self.env.reward_gates
 
-        glColor4f(0.0, 1.0, 0.0, 1)
+        glColor4f(0.6, 0.6, 0.6, 1)
         glLineWidth(4.0)
         glBegin(gl.GL_LINES)
         for a,b in gate_pxls:
             glVertex2f( *a )
             glVertex2f( *b )
         if self.env.n_gates_passed>0:
-            glColor4f(1.0, 0.0, 0.0, 1)
+            glColor4f(0.0, 1.0, 0.0, 1)
             glVertex2f( *gate_pxls[self.env.n_gates_passed-1][0] )
             glVertex2f( *gate_pxls[self.env.n_gates_passed-1][1] )
         glEnd()
@@ -427,39 +427,66 @@ class CarGameWindow(pyglet.window.Window):
         y = self.scale*50
         x = self.scale*97
         fwd_ray_lens = 0.5*self.scale*self.env.fwd_ray_lens
-        glColor4f(1.0, 0.0, 0.0, 1)
-        glLineWidth(4.0)
+        glColor4f(0.0, 1.0, 1.0, 1)
+        glLineWidth(10.0)
 
         glBegin(gl.GL_LINES)
         for length in fwd_ray_lens:
             glVertex2f( x, y )
             glVertex2f( x, y+length )
-            x = x - 4
+            x = x - 10
         glEnd()
 
         fwd_vel = 3*self.scale*self.env.fwd_vel
         sid_vel = 3*self.scale*self.env.sid_vel
         y = self.scale*50
-        x = self.scale*100
-        glColor4f(1.0, 0.5, 0.5, 1)
-        glLineWidth(4.0)
+        x = self.scale*105
+        glColor4f(0.0, 1.0, 1.0, 1)
+        glLineWidth(10.0)
         glBegin(gl.GL_LINES)
-        glVertex2f( x-2, y )
-        glVertex2f( x-2, y+fwd_vel )
-        glVertex2f( x+2, y )
-        glVertex2f( x+2, y+sid_vel )
+        glVertex2f( x-5, y )
+        glVertex2f( x-5, y+fwd_vel )
+        glVertex2f( x+5, y )
+        glVertex2f( x+5, y+sid_vel )
         glEnd()
 
     def draw_rays(self):
         car_front   = self.scale * self.env.car_front
         fwd_ray_end = self.scale * self.env.fwd_ray_end
-        glColor4f(1.0, 0.0, 0.0, 1)
+        glColor4f(0.0, 1.0, 1.0, 1)
         glLineWidth(2.0)
         glBegin(gl.GL_LINES)
         for end in fwd_ray_end:
             glVertex2f( *car_front )
             glVertex2f( *end )
         glEnd()
+
+    def draw_action(self):
+        start_x = 500
+        start_y = 300
+
+        trn = 50*self.env.trn_state
+        fwd = 100*max( 0, self.env.fwd_state )
+        brk = 100*max( 0, self.env.brk_state )
+
+        glLineWidth(10.0)
+        glBegin(gl.GL_LINES)
+        glColor4f(0.0, 0.0, 1.0, 1)
+        glVertex2f( start_x+50,     start_y )
+        glVertex2f( start_x+50+trn, start_y )
+        glColor4f(0.0, 1.0, 0.0, 1)
+        glVertex2f( start_x,     start_y-10 )
+        glVertex2f( start_x+fwd, start_y-10 )
+        glColor4f(1.0, 0.0, 0.0, 1)
+        glVertex2f( start_x,     start_y-20 )
+        glVertex2f( start_x+brk, start_y-20 )
+        glEnd()
+
+        # steering_wheel = pyglet.shapes.Rectangle(x=500, y=325, width=100, height=50)
+        # steering_wheel.anchor_position = (50, 25)
+        # steering_wheel.color = (0, 0, 255)
+        # steering_wheel.rotation = trn
+        # steering_wheel.draw()
 
     def on_draw(self):
         """ Creating the new screen based on the new positions
@@ -472,6 +499,7 @@ class CarGameWindow(pyglet.window.Window):
         self.draw_car()
         self.draw_gates()
         self.draw_vision()
+        self.draw_action()
         # self.draw_rays()
 
 

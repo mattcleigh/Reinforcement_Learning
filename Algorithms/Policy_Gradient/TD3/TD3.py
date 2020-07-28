@@ -206,8 +206,9 @@ class Agent(object):
             ## Update the policy by one step of gradient ascent
             self.A_optimiser.zero_grad()
             new_actions = self.actor(states)
-            new_Q1 = self.critic.Q1_only(states, new_actions)
-            A_loss = - ( new_Q1 * is_weights ).mean()
+            new_Q_1, new_Q_2 = self.critic( states, new_actions )
+            new_Q_values = T.min(new_Q_1, new_Q_2)
+            A_loss = - ( new_Q_values * is_weights ).mean()
             A_loss.backward()
             self.A_optimiser.step()
 

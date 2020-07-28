@@ -21,8 +21,8 @@ def main():
 
     ################ USER INPUT ################
 
-    test_mode = False
-    load_prev = False
+    test_mode = True
+    load_prev = True
     render_on = True
     save_every = 10000
 
@@ -50,19 +50,19 @@ def main():
                     input_dims = inp_space, n_actions = act_space,
                     active = nn.ReLU(), grad_clip = 0, QL2 = 0,
                     \
-                    C_lr = 1e-3, C_depth = 2, C_width = 400,
-                    A_lr = 1e-3, A_depth = 2, A_width = 400,
+                    C_lr = 1e-4, C_depth = 2, C_width = 400,
+                    A_lr = 1e-4, A_depth = 2, A_width = 400,
                     \
-                    eps = 2e-1, eps_min = 1e-3, eps_dec = 1e-6,
+                    eps = 1e-5, eps_min = 1e-5, eps_dec = 1e-6,
                     \
                     delay = 2, smooth_noise = 0.2, noise_clip = 0.5,
                     \
                     mem_size = 1000000,   batch_size = 100,
-                    target_sync = 5e-3,  freeze_up = 1000,
+                    target_sync = 5e-3,  freeze_up = 0,
                     \
-                    PER_on    = True, n_step  = 3,
+                    PER_on    = True, n_step   = 3,
                     PEReps    = 0.01, PERa     = 0.6,
-                    PERbeta   = 0.4,  PERb_inc = 1e-6,
+                    PERbeta   = 0.4,  PERb_inc = 1e-7,
                     PERmax    = 1,
                     )
 

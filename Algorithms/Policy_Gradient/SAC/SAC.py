@@ -80,12 +80,14 @@ class Agent(object):
                  name,
                  net_dir,
                  \
-                 gamma, ent_coef, ent_tune,
+                 gamma,
                  input_dims, n_actions,
                  active, grad_clip,
                  \
                  C_lr, C_depth, C_width,
                  A_lr, A_depth, A_width,
+                 \
+                 ent_coef, ent_tune,
                  \
                  mem_size,    batch_size,
                  target_sync, freeze_up,
