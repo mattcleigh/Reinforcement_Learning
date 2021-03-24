@@ -4,7 +4,7 @@ sys.path.append(home_env)
 
 import gym
 import time
-import pybullet_envs
+# import pybullet_envs
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import count

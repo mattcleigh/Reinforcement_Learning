@@ -1,7 +1,3 @@
-import sys
-home_env = '../../../../Reinforcement_Learning/'
-sys.path.append(home_env)
-
 from Resources import Networks as myNN
 from Resources import Utils as myUT
 

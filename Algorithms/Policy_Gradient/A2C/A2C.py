@@ -1,7 +1,3 @@
-import sys
-home_env = '../../../../Reinforcement_Learning/'
-sys.path.append(home_env)
-
 from Resources import Networks as myNN
 from Resources import Plotting as myPT
 from Resources import Utils as myUT
@@ -47,10 +43,6 @@ class Agent(object):
         ## The gradient descent algorithm and loss function used to train the policy network
         self.optimiser = optim.Adam( self.actor_critic.parameters(), lr = lr )
         self.loss_fn = nn.SmoothL1Loss( reduction = 'none' )
-
-        ## We create the memory to hold the update for each batch
-        self.memory = myMM.SmallMemory( n_workers*n_frames, input_dims )
-        self.memory.reset()
 
         ## We now initiate the vectorised worker environment
         self.vec_workers = myUT.Vectorised_Worker(self, n_workers, env_name, n_frames, gamma)
@@ -116,6 +108,7 @@ class Agent(object):
 
         ## We do a single update step using the sum of losses (equivalent to two steps)
         loss = actor_loss + ( self.vf_coef * critic_loss ) - ( self.ent_coef * entropy )
+        loss = loss.mean()
         loss.backward()
 
         ## We might want to clip the gradient before performing SGD

@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../../Reinforcement_Learning/'
+home_env = '../../../'
 sys.path.append(home_env)
 
 import gym

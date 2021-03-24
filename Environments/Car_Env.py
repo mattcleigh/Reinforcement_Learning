@@ -1,6 +1,3 @@
-import sys
-sys.path.append('/home/matthew/Documents/Reinforcement_Learning/')
-
 import math
 import time
 import numpy as np

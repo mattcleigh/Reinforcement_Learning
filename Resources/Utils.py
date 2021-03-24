@@ -1,7 +1,4 @@
 import sys
-home_env = '../'
-sys.path.append(home_env)
-
 import csv
 import gym
 import time

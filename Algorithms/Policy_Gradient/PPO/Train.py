@@ -1,5 +1,5 @@
 import sys
-home_env = '../../../../Reinforcement_Learning/'
+home_env = '../../../'
 sys.path.append(home_env)
 
 import gym
@@ -53,7 +53,7 @@ def main():
                     eps_clip = 0.2, pol_sync = 50,
                     \
                     env_name = env_name,
-                    n_workers = 4, n_frames = 512,
+                    n_workers = 12, n_frames = 512,
                     vf_coef = 0.1, ent_coef = 0.01,
                     )
 
