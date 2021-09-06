@@ -293,7 +293,7 @@ class MainEnv:
 
 
     def decode_action(self, action):
-        """ Decoding the action based on a scaler between 0 and 8
+        """ Decoding the action based on a int between 0 and 8
         """
 
         assert(action in range(12))

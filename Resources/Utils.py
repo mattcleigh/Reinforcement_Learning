@@ -1,6 +1,6 @@
 import sys
 import csv
-import gym
+# import gym
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,6 +15,8 @@ from Resources import Plotting as myPT
 from Resources import MemoryMethods as myMM
 
 import torch as T
+
+
 
 class Vectorised_Worker:
     """ This worker object contains its own environment and
