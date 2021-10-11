@@ -58,39 +58,47 @@ class IQNDuelMLP(nn.Module):
         self.to(self.device)
         self.pi_vals = self.pi_vals.to(self.device)
 
-    def tau_embedding(self, b_size, n_quant):
+    def tau_embedding(self, b_size, n_fixed_quant):
         ''' Generate taus and embed them using a cosine layer
         args:
-            b_size: The batch size of the sample, used to calculate how many taus are required
+            b_size: The batch size for the random tau generation
+            n_fixed_quant: If greater than 0 then a fixed number of quantiles on a linspace will be generated (for action choosing)
         returns:
-            taus: The tau values, needed later for loss calculation
             cos_embd: The cosine embedded values
-
         '''
-        n_taus = b_size * n_quant
-        taus = T.rand((n_taus, 1), dtype=T.float32, device=self.device)
-        cos_embd = T.cos(self.pi_vals * taus)
+        ## Generate random taus per sample in the batch
+        if n_fixed_quant == 0:
+            taus = T.rand((b_size, self.n_quantiles), dtype=T.float32, device=self.device)
+        else:
+            eps = 1.0 / n_fixed_quant
+            taus = T.linspace(eps, 1-eps, n_fixed_quant, dtype=T.float32, device=self.device)
+            taus = taus.unsqueeze(-1)
 
-        ## Save the taus as class attributes, needed for loss calculation
-        self.taus = taus.view(b_size, n_quant)
+        ## Save the taus as a class attribute, needed for loss funcitons
+        self.taus = taus
+        self.taus.requires_grad = True
+
+        ## Get the cosine embedding
+        cos_embd = T.cos(self.pi_vals * self.taus.view(-1,1))
 
         return cos_embd
 
-    def forward(self, state, n_quant=None):
+    def forward(self, state, n_fixed_quant=0):
         ''' Calculates the quantile function of the reward at a set number of quantiles
         args:
             state: The input batched state vector
+        kwargs:
+            n_fixed_quant: If greater than 0 then a fixed number of quantiles on a linspace will be generated (for action choosing)
         returns:
             A: The action (advantage) values of shape (batch, n_act, n_quant)
-            n_quant: The number of quantiles to calculate, default points to class attribute
+            taus: The tau values to query, if None they will be generated randomly
         '''
 
-        if n_quant is None:
-            n_quant = self.n_quantiles
+        n_quant = n_fixed_quant if n_fixed_quant else self.n_quantiles
 
         ## Generate the taus and get their embeddings
         batch_size = state.shape[0]
-        cos_embd = self.tau_embedding(batch_size, n_quant)
+        cos_embd = self.tau_embedding(batch_size, n_fixed_quant)
 
         ## We pass the state through the base layer
         base_out = self.base_stream(state)
@@ -100,6 +108,7 @@ class IQNDuelMLP(nn.Module):
         rpt_base_out = T.repeat_interleave(base_out, n_quant, dim=0)
 
         ## Combine the state embedding and the cosine embedding of the taus
+
         joined = T.cat([rpt_base_out, cos_embd], dim=-1)
 
         ## Pass through the joined stream
@@ -191,24 +200,24 @@ class IQN_Agent(object):
         ## Check if we have exeeded the initial exploration stage
         if not self.test_mode and self.memory.mem_cntr < self.freeze_up:
             action = rd.randint(self.n_actions)
-            act_value = 0
+            act_dist = np.zeros(32)
 
         ## Use epsilon greedy action selection
         elif not self.test_mode and rd.random() < self.eps:
                 action = rd.randint(self.n_actions)
-                act_value = 0
+                act_dist = np.zeros(32)
                 self.eps = max(self.eps - self.eps_dec, self.eps_min)
 
         ## Act based on the policy network's q value estimate
         else:
             with T.no_grad():
                 state_tensor = T.tensor(state, device=self.policy_net.device, dtype=T.float32)
-                pol_dist = self.policy_net(state_tensor.unsqueeze(0), n_quant=32).squeeze()
+                pol_dist = self.policy_net(state_tensor.unsqueeze(0), n_fixed_quant=32).squeeze()
                 Q_values = pol_dist.mean(dim=-1)
                 action = T.argmax(Q_values).item()
-                act_value = myUT.to_np(Q_values[action])
+                act_dist = myUT.to_np(pol_dist[action])
 
-        return action, act_value
+        return action, act_dist
 
     def store_transition(self, state, action, reward, next_state, done):
         ''' A direct interface to the replay buffer, so that no external class needs to access it
@@ -291,10 +300,18 @@ class IQN_Agent(object):
         taus = self.policy_net.taus.unsqueeze(-2).expand(-1, self.n_quantiles, self.n_quantiles)
 
         ## We then find the loss function using the QR equation
-        QRloss = self.huber_fn(diff_matrix) * (taus - (diff_matrix.detach()>0).float()).abs()
+        QRloss = self.huber_fn(diff_matrix) * (taus - (diff_matrix.detach()<0).float()).abs()
 
         ## We then need to find the mean for each matrix
         QRloss = QRloss.mean(dim=(-1, -2))
+
+        ## Calculate the gradients with respect to the taus
+        # grad_loss_fn = lambda x: T.where(x<0, -x, 0*x)
+        # grad_outputs = T.ones_like(self.policy_net.taus)
+        # gradients = T.autograd.grad(outputs=pol_dist, inputs=self.policy_net.taus,
+        #                             grad_outputs=grad_outputs,
+        #                             create_graph=True, retain_graph=True)[0]
+        # grad_loss = grad_loss_fn(gradients)
 
         ## Use this loss as new errors to be used in PER and update the replay
         if self.PER_on:
@@ -303,7 +320,7 @@ class IQN_Agent(object):
 
         ## Now we use the loss for graidient desc, applying is weights if using PER
         loss = QRloss * is_weights.unsqueeze(1)
-        loss = loss.mean()
+        loss = loss.mean() #0.1*grad_loss.mean()
         loss.backward()
 
         ## We might want to clip the gradient before performing SGD

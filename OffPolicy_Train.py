@@ -1,10 +1,14 @@
 import gym
 import sys
 import json
+import numpy as np
+
+import matplotlib.pyplot as plt
 
 from itertools import count
 
 from Algorithms import D3QN, IQN
+
 
 def main():
 
@@ -20,7 +24,7 @@ def main():
     load_prev = False ## Load a checkpoint with the same name
     save_every = 1000 ## Number of environment steps before save checkpoint is called
     render_env = True ## Render the environment and the rewards in their own windows
-    render_rtn = 2    ## Number of environment steps before rendering expected return
+    render_rtn = 10   ## Number of environment steps before rendering expected return
 
     ## Additional kwargs for the algorithm
     alg_kwargs = {
@@ -52,7 +56,12 @@ def main():
     agent.test_mode = test_mode
 
     ## Create plots for visualising episode rewards and state value predictions
-    # plt.ion()
+    plt.ion()
+    fig, ax = plt.subplots(1, 1, figsize = (5,5))
+    line, = ax.plot([], [])
+    ax.set_xlim([0, 1])
+    ax.set_ylim([-300, 300])
+
     # sp = myPT.score_plot(agent.name)
     # if draw_return:
     #     if alg == 'D3QN': vp = myPT.value_plot()
@@ -100,8 +109,9 @@ def main():
             sys.stdout.flush()
 
             # ## Plot the expected return
-            # if draw_return and all_time%draw_interv==0:
-            #     vp.update(value)
+            if render_rtn and all_time%render_rtn==0:
+                line.set_data(np.linspace(0, 1, len(value)), value)
+                fig.canvas.flush_events()
             #
             # ## Save a checkpoint for the models
             # if not test_mode and all_time%save_every==0:
