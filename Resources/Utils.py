@@ -16,8 +16,6 @@ from Resources import MemoryMethods as myMM
 
 import torch as T
 
-
-
 class Vectorised_Worker:
     """ This worker object contains its own environment and
         records its own experience.
@@ -204,100 +202,6 @@ class Worker:
         ## Now we iterate through the new batch and store it to memory
         for s, a, v in zip(states, actions, values):
             self.cen_agent.store_transition( s, a, v )
-
-
-def train_dqn_model( agent, env, render_on, test_mode, save_every,
-                     draw_return=False, draw_interv=10, ret_type="" ):
-
-    ## For plotting as it learns
-    plt.ion()
-    sp = myPT.score_plot(agent.name)
-    if draw_return:
-        if  ret_type=="val":
-            vp = myPT.value_plot()
-        elif ret_type=="dist":
-            vp = myPT.dist_plot( agent.vmin, agent.vmax, agent.n_atoms)
-        elif ret_type=="quant":
-            vp = myPT.quant_plot()
-
-    ## We check if we are in test mode, which reduces eps and freezup
-    if test_mode:
-        agent.eps = 0
-        agent.eps_min = 0
-        agent.freezup = 0
-
-    ## We check if we are in ram mode, which requires state pre-scaling
-    ram_mode = False
-    if len(env.reset())==128:
-        print("\nRam input detected, will be applying pre-scaling:")
-        print("----->  X / 255 - 0.5\n")
-        ram_mode = True
-
-    ## Episode loop
-    all_time = 0
-    for ep in count():
-
-        ## Resetting the environment and episode stats
-        state = env.reset()
-        ep_score = 0.0
-        ep_loss  = 0.0
-
-        ## We check if pre-scaling needs to be done
-        if ram_mode:
-            state = state / 255 - 0.5
-
-        ## Running through an episode
-        for t in count():
-
-            ## We visualise the environment if we want
-            if render_on:
-                env.render()
-
-            ## The agent chooses an action
-            action, value = agent.choose_action(state)
-
-            ## The environment evolves wrt chosen action
-            next_state, reward, done, info = env.step(action)
-
-            ## We check if pre-scaling needs to be done
-            if ram_mode:
-                next_state = next_state / 255 - 0.5
-
-            ## Storing the transition and training the model
-            if not test_mode:
-                agent.store_transition( state, action, reward, next_state, done )
-                loss = agent.train()
-                ep_loss += loss
-
-            ## Replacing the state
-            state = next_state
-
-            ## Updating episode stats
-            ep_score += reward
-            all_time += 1.0
-            eps = agent.eps
-
-            ## Printing running episode score
-            print( "Score = {:.7}     \r".format( ep_score ), end="" )
-            sys.stdout.flush()
-
-            ## Drawing the modelled return
-            if draw_return and all_time%draw_interv==0:
-                vp.update(value)
-
-            ## Saving the models
-            if not test_mode and all_time%save_every==0:
-                agent.save_models()
-
-            ## Check if episode has concluded
-            if done:
-                break
-
-        ## Prining and plotting the completed episode stats
-        ep_loss /= (t+1)
-        sp.update(ep_score)
-        print( "Episode {}: Reward = {:.7}, Loss = {:4.3f}, Eps = {:4.3f}, Episode Time = {}, Total Time = {}".format( \
-                                         ep, ep_score, ep_loss, eps, t+1, all_time ) )
 
 
 def train_ac_model(agent, env, render_on, test_mode, save_every):

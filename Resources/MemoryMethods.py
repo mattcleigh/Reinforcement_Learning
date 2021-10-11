@@ -63,58 +63,6 @@ class SumTree(object):
         return self.tree[0]
 
 
-class Experience_Replay(object):
-    """ A class which contains the standard experience replay buffer for DQN models
-    """
-    def __init__(self, capacity, state_input_shape):
-
-        ## Descriptions of the memory
-        self.capacity  = capacity
-        self.mem_cntr  = 0
-        self.index    = 0
-
-        ## The actual memory arrays which will hold the data
-        self.state_memory      = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
-        self.next_state_memory = np.zeros( (capacity, *state_input_shape), dtype=np.float32 )
-        self.action_memory     = np.zeros(  capacity, dtype=np.int64   )
-        self.reward_memory     = np.zeros(  capacity, dtype=np.float32 )
-        self.terminal_memory   = np.zeros(  capacity, dtype=np.bool    )
-
-    def store_transition(self, state, action, reward, next_state, done):
-
-        ## We check what index is being filled/replaced
-        self.index = self.mem_cntr % self.capacity
-
-        ## We store the transition information in its respective arrays
-        self.state_memory[self.index]      = state
-        self.action_memory[self.index]     = action
-        self.reward_memory[self.index]     = reward
-        self.next_state_memory[self.index] = next_state
-        self.terminal_memory[self.index]   = done
-        self.mem_cntr += 1
-
-    def sample_memory(self, batch_size):
-
-        ## We collect the indices using a uniform sample
-        is_weights, indices = self._sample_indices( batch_size )
-
-        ## We then collect the data using those indices
-        states      = self.state_memory[indices]
-        actions     = self.action_memory[indices]
-        rewards     = self.reward_memory[indices]
-        next_states = self.next_state_memory[indices]
-        dones       = self.terminal_memory[indices]
-
-        ## The PER returns is_weights and indices so to unify these methods
-        ## we return them too, even though we do not use them.
-        return states, actions, rewards, next_states, dones, is_weights, indices
-
-    def _sample_indices(self, batch_size):
-        ## Returns the IS_weights and the indices
-        ## In normal exp replay, all is_weights are set to 1
-        max_mem = min(self.mem_cntr, self.capacity)
-        indices = np.random.choice(max_mem, batch_size, replace=False)
-        return [1], indices
 
 
 class PER(Experience_Replay):

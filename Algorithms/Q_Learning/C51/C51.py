@@ -54,7 +54,7 @@ class C51DuelMLP(nn.Module):
         shared_out = self.base_stream(state)
         V = self.V_stream(shared_out).view(-1, 1, self.n_atoms)
         A = self.A_stream(shared_out).view(-1, self.n_actions, self.n_atoms)
-        Q = V + A - A.mean( dim=1, keepdim=True)
+        Q = V + A - A.mean(dim=1, keepdim=True)
         Q = F.softmax(Q, dim=-1)
 
         return Q
